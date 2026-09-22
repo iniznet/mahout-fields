@@ -167,6 +167,68 @@ final class Hooks
     public const string RESTORE_POST_REVISION = 'wp_restore_post_revision';
 
     /**
+     * Core's save_post action: the classic editor path the save lifecycle is
+     * attached to, at priority 10 with accepted_args 3. A core hook, declared
+     * here because the raw-hook-name ban applies to core hooks as much as to
+     * mahout ones; the host's AdminProvider attaches its handler through it.
+     *
+     * @since 1.0
+     *
+     * @action
+     *
+     * @param int     $postId the saved post's id
+     * @param WP_Post $post   the saved post
+     * @param bool    $update whether this is an existing post being updated
+     */
+    public const string SAVE_POST = 'save_post';
+
+    /**
+     * Core's metabox registration action. A core hook, declared here for the
+     * same reason as save_post: Admin\FieldMetabox attaches through it.
+     *
+     * @since 1.0
+     *
+     * @action
+     *
+     * @param string  $postType the screen's post type
+     * @param WP_Post $post     the post being edited
+     */
+    public const string ADD_META_BOXES = 'add_meta_boxes';
+
+    /**
+     * Core's REST init action, on which the host's AdminProvider registers the
+     * field route and the per-post-type register_rest_field reads.
+     *
+     * @since 1.0
+     *
+     * @action
+     */
+    public const string REST_API_INIT = 'rest_api_init';
+
+    /**
+     * Core's personal-data exporter registration filter. The package's
+     * exporter joins it at register() time.
+     *
+     * @since 1.0
+     *
+     * @filter
+     *
+     * @param array<string, array{exporter_friendly_name: string, callback: callable}> $exporters
+     */
+    public const string PERSONAL_DATA_EXPORTERS = 'wp_privacy_personal_data_exporters';
+
+    /**
+     * Core's personal-data eraser registration filter.
+     *
+     * @since 1.0
+     *
+     * @filter
+     *
+     * @param array<string, array{eraser_friendly_name: string, callback: callable}> $erasers
+     */
+    public const string PERSONAL_DATA_ERASERS = 'wp_privacy_personal_data_erasers';
+
+    /**
      * The one permitted dynamic hook form, and the one site it is constructed.
      *
      * @filter

@@ -11,6 +11,7 @@ use Iniznet\Mahout\Fields\IntegerField;
 use Iniznet\Mahout\Fields\MirrorCodec;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectRef;
+use Iniznet\Mahout\Fields\PersonalData;
 use Iniznet\Mahout\Fields\StorageTarget;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 use Iniznet\Mahout\Fields\TextField;
@@ -148,7 +149,7 @@ final class GroupWriteTest extends TestCase
     private function userGroup(): FieldGroup
     {
         return new FieldGroup('fixture_user', ObjectContext::User, [
-            new TextField('fixture_text', StorageTarget::Table),
+            new TextField('fixture_text', StorageTarget::Table, PersonalData::notPersonal('the test group carries no user data')),
         ]);
     }
 }

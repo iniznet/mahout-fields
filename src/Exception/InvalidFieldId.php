@@ -30,6 +30,11 @@ final class InvalidFieldId extends \InvalidArgumentException implements MahoutEx
         return new self(sprintf('The %s id "%s" is longer than the %d-character maximum.', $kind, $id, $maximum), $kind, $id);
     }
 
+    public static function privacyPolicyMissing(string $fieldId): self
+    {
+        return new self(sprintf('User-scoped field "%s" declares no PersonalData policy; the policy is a required declaration with no default.', $fieldId), 'field', $fieldId);
+    }
+
     public static function emptyGroup(string $groupId): self
     {
         return new self(sprintf('Field group "%s" declares no fields.', $groupId), 'group', $groupId);

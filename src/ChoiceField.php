@@ -24,8 +24,10 @@ final readonly class ChoiceField extends Field
         string $id,
         StorageTarget $storage,
         public array $options,
+        ?PersonalData $personalData = null,
+        ?string $label = null,
     ) {
-        parent::__construct($id, $storage);
+        parent::__construct($id, $storage, $personalData, $label);
 
         if ([] === $options) {
             throw InvalidFieldDefinition::emptyChoiceSet($id);

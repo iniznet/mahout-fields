@@ -62,10 +62,10 @@ final class FieldDeclarationTest extends TestCase
             $constructor = (new \ReflectionClass($class))->getConstructor();
 
             self::assertNotNull($constructor, $class);
-            $expected = ChoiceField::class === $class ? 3 : 2;
-            self::assertCount($expected, $constructor->getParameters(), $class);
-            self::assertSame('storage', $constructor->getParameters()[1]->getName(), $class);
-            self::assertFalse($constructor->getParameters()[1]->isDefaultValueAvailable(), $class.' must not default storage');
+            $parameters = $constructor->getParameters();
+            self::assertSame('id', $parameters[0]->getName(), $class);
+            self::assertSame('storage', $parameters[1]->getName(), $class);
+            self::assertFalse($parameters[1]->isDefaultValueAvailable(), $class.' must not default storage');
         }
     }
 

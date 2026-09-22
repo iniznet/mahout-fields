@@ -34,6 +34,16 @@ final class InvalidFieldDefinition extends \LogicException implements MahoutExce
         return new self(sprintf('Repeater "%s" declares expectedMaxItems of %d; the count must be positive.', $fieldId, $declared), $fieldId, 'items');
     }
 
+    public static function noControl(string $type): self
+    {
+        return new self(sprintf('Field type "%s" has no editor control; register one through the editor_controls filter.', $type), $type, 'control');
+    }
+
+    public static function noValueColumn(string $fieldId): self
+    {
+        return new self(sprintf('Field "%s" has no value column; a repeater is queried through its items, not the value table.', $fieldId), $fieldId, 'value-column');
+    }
+
     public function fieldId(): string
     {
         return $this->fieldId;

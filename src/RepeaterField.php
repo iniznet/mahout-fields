@@ -26,8 +26,10 @@ final readonly class RepeaterField extends Field
         public Field $item,
         public ?int $expectedMaxItems = null,
         public bool $queried = false,
+        ?PersonalData $personalData = null,
+        ?string $label = null,
     ) {
-        parent::__construct($id, $storage);
+        parent::__construct($id, $storage, $personalData, $label);
 
         if ($item instanceof RepeaterField) {
             throw InvalidFieldDefinition::repeaterOfRepeater($id);

@@ -16,9 +16,9 @@ final readonly class DateField extends Field
 {
     private const string FORMAT = 'Y-m-d';
 
-    public function __construct(string $id, StorageTarget $storage)
+    public function __construct(string $id, StorageTarget $storage, ?PersonalData $personalData = null, ?string $label = null)
     {
-        parent::__construct($id, $storage);
+        parent::__construct($id, $storage, $personalData, $label);
     }
 
     #[\Override]

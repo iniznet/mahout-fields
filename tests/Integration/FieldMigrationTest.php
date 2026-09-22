@@ -18,6 +18,7 @@ use Iniznet\Mahout\Fields\MigrateFieldMetaToTable;
 use Iniznet\Mahout\Fields\MigrateFieldTableToMeta;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectRef;
+use Iniznet\Mahout\Fields\PersonalData;
 use Iniznet\Mahout\Fields\RepeaterField;
 use Iniznet\Mahout\Fields\StorageTarget;
 use Iniznet\Mahout\Fields\Tests\TestCase;
@@ -200,7 +201,7 @@ final class FieldMigrationTest extends TestCase
     private function userGroup(): FieldGroup
     {
         return new FieldGroup('fixture_user', ObjectContext::User, [
-            new TextField('fixture_text', StorageTarget::Meta),
+            new TextField('fixture_text', StorageTarget::Meta, PersonalData::notPersonal('the migration fixture carries no user data')),
         ]);
     }
 

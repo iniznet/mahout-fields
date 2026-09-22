@@ -39,6 +39,11 @@ final class InvalidFieldWrite extends \LogicException implements MahoutException
         return new self(sprintf('Field "%s" is option-context; the value table has no option row.', $fieldId), $fieldId, 'context');
     }
 
+    public static function routeWritesMeta(string $fieldId): self
+    {
+        return new self(sprintf('Field "%s" is not Table-bound; the field route writes Table storage only. A Meta field is written through register_post_meta().', $fieldId), $fieldId, 'target');
+    }
+
     public static function unreadableMeta(string $fieldId): self
     {
         return new self(sprintf('The stored value under field "%s" is not this package\'s shape; refusing to coerce it.', $fieldId), $fieldId, 'shape');

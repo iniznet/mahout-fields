@@ -8,3 +8,57 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "X-Domain: mahout-fields\n"
 
+#. translators: 1: field id, 2: the retention reason declared on the field
+#: src/PersonalDataEraser.php:68
+msgid "Field \"%1$s\" was retained: %2$s"
+msgstr ""
+
+#: src/PersonalDataExporter.php:49
+msgid "Field values"
+msgstr ""
+
+#: src/Field.php:44
+msgid "No address set."
+msgstr ""
+
+#: src/Field.php:43
+msgid "No content yet."
+msgstr ""
+
+#: src/Field.php:48
+msgid "No date set."
+msgstr ""
+
+#: src/Field.php:49
+msgid "No items yet."
+msgstr ""
+
+#: src/Field.php:45
+msgid "No link set."
+msgstr ""
+
+#: src/Field.php:42
+msgid "No value set."
+msgstr ""
+
+#: src/Field.php:47
+msgid "Not set."
+msgstr ""
+
+#: src/Field.php:46
+msgid "Nothing selected."
+msgstr ""
+
+#: src/Admin/FieldRestRoute.php:131
+#: src/Admin/FieldRestRoute.php:98
+msgid "The object_id parameter must be a positive integer."
+msgstr ""
+
+#: src/Admin/FieldRestRoute.php:137
+msgid "The value must be a scalar."
+msgstr ""
+
+#: src/Admin/FieldRestRoute.php:108
+msgid "You are not allowed to edit this object."
+msgstr ""
+

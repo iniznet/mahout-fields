@@ -15,6 +15,7 @@ use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\IntegerField;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectRef;
+use Iniznet\Mahout\Fields\PersonalData;
 use Iniznet\Mahout\Fields\RepeaterField;
 use Iniznet\Mahout\Fields\StorageTarget;
 use Iniznet\Mahout\Fields\Tests\TestCase;
@@ -51,8 +52,8 @@ final class MetaRoundTripTest extends TestCase
     {
         $userId = $this->userId();
         $this->registry->register(new FieldGroup('fixture_user', ObjectContext::User, [
-            new TextField('fixture_display', StorageTarget::Meta),
-            new IntegerField('fixture_karma', StorageTarget::Meta),
+            new TextField('fixture_display', StorageTarget::Meta, PersonalData::export('Display name')),
+            new IntegerField('fixture_karma', StorageTarget::Meta, PersonalData::export('Karma')),
         ]));
 
         $this->writer->set('fixture_display', ObjectRef::user($userId), 'Ada Lovelace');
@@ -66,7 +67,7 @@ final class MetaRoundTripTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_user', ObjectContext::User, [
-            new TextField('fixture_display', StorageTarget::Meta),
+            new TextField('fixture_display', StorageTarget::Meta, PersonalData::export('Display name')),
         ]));
 
         $this->expectException(\Iniznet\Mahout\Fields\Exception\InvalidFieldContext::class);

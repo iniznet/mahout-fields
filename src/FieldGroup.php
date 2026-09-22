@@ -28,6 +28,8 @@ final readonly class FieldGroup
         public string $id,
         public ObjectContext $context,
         public array $fields,
+        public readonly ?string $label = null,
+        public readonly bool $compact = false,
     ) {
         if (strlen($id) > self::MAX_ID_LENGTH) {
             throw InvalidFieldId::tooLong('group', $id, self::MAX_ID_LENGTH);

@@ -119,6 +119,10 @@ final class FieldRegistry implements FieldRegistryContract
             throw InvalidStorageCombination::optionContextTable($field->id);
         }
 
+        if (ObjectContext::User === $group->context && null === $field->personalData) {
+            throw InvalidFieldId::privacyPolicyMissing($field->id);
+        }
+
         if (!$field instanceof RepeaterField) {
             return;
         }

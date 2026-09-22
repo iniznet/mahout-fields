@@ -54,6 +54,20 @@ final class InvalidStorageCombination extends \InvalidArgumentException implemen
         );
     }
 
+    /**
+     * A Meta-bound field has no row to query: its value is load-with-the-entity
+     * and the value table never holds it. Filtered reads are Table's own job.
+     */
+    public static function queryAgainstMeta(string $fieldId): self
+    {
+        return new self(
+            sprintf('Field "%s" is bound to Meta storage; only a Table-bound field can be queried through the value table.', $fieldId),
+            $fieldId,
+            'any',
+            'meta',
+        );
+    }
+
     public function fieldId(): string
     {
         return $this->fieldId;

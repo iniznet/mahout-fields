@@ -78,4 +78,22 @@ interface FieldWriter
      * @throws RepeaterTooLarge     above the declared cap
      */
     public function writeGroup(string $groupId, ObjectRef $object, array $values, string $expectedHash): string;
+
+    /**
+     * The REST route's single-field write: sanitise once, then one transaction
+     * whose first read is the group's lost-update guard and whose last write is
+     * the mirror. A field that is not Table-bound is refused: the route exists
+     * because Table storage has no other write path, and a Meta field is
+     * written through register_post_meta().
+     *
+     * @param string|int|float|bool|list<string|int|float|bool>|null $value the raw value, or raw item list for a repeater
+     *
+     * @return string the mirror hash after the write
+     *
+     * @throws ConcurrentEditLost  when the expected hash does not match
+     * @throws FieldNotFound       when the id is not registered
+     * @throws InvalidFieldContext when the object's context is not the group's
+     * @throws InvalidFieldWrite   when the field is not Table-bound or the shape is wrong
+     */
+    public function writeField(string $fieldId, ObjectRef $object, string|int|float|bool|array|null $value, string $expectedHash): string;
 }

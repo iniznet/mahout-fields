@@ -62,6 +62,7 @@ final class FieldsProvider implements ServiceProvider
         $this->attachMigrations($connection, $emitter);
         $this->attachOrphanSources($connection, $valuesTable, $itemsTable);
         $this->attachRestore(new RevisionRestorer($registry, $gateway, $table, $mirror));
+        $this->attachPrivacy($registry, $container);
     }
 
     public function boot(Container $container): void
@@ -101,6 +102,49 @@ final class FieldsProvider implements ServiceProvider
         \add_filter(
             DbHooks::MIGRATIONS,
             static fn (array $migrations): array => [...$migrations, $valueTable, $itemTable],
+            priority: 10,
+            accepted_args: 1,
+        );
+    }
+
+    /**
+     * The privacy paths join core's exporter and eraser registries through
+     * the two filters whose names are declared on Hooks. The exporter and the
+     * eraser are the package's own values over the registry, the reader and
+     * the writer, so the declaration's policy is the only thing that decides
+     * what an erasure request touches.
+     */
+    private function attachPrivacy(FieldRegistry $registry, Container $container): void
+    {
+        $reader = $container->get(FieldReaderContract::class);
+        $writer = $container->get(FieldWriterContract::class);
+        $exporter = new PersonalDataExporter($registry, $reader);
+        $eraser = new PersonalDataEraser($registry, $reader, $writer);
+
+        \add_filter(
+            Hooks::PERSONAL_DATA_EXPORTERS,
+            static function (array $exporters) use ($exporter): array {
+                $exporters['mahout-fields'] = [
+                    'exporter_friendly_name' => \__('mahout-fields field values', 'mahout-fields'),
+                    'callback' => $exporter->export(...),
+                ];
+
+                return $exporters;
+            },
+            priority: 10,
+            accepted_args: 1,
+        );
+
+        \add_filter(
+            Hooks::PERSONAL_DATA_ERASERS,
+            static function (array $erasers) use ($eraser): array {
+                $erasers['mahout-fields'] = [
+                    'eraser_friendly_name' => \__('mahout-fields field values', 'mahout-fields'),
+                    'callback' => $eraser->erase(...),
+                ];
+
+                return $erasers;
+            },
             priority: 10,
             accepted_args: 1,
         );

@@ -51,12 +51,7 @@ final readonly class FieldWriter implements FieldWriterContract
 
         \do_action(Hooks::BEFORE_SAVE, $fieldId, $value, $field, $object->id);
 
-        // The filter is a trust boundary; the check is the boundary itself.
-        $sanitised = \apply_filters(Hooks::SANITIZED_VALUE, $field->sanitise($value), $field, $object->id);
-
-        if (null !== $sanitised && !\is_scalar($sanitised)) {
-            throw Exception\InvalidFilterResult::notASanitisedScalar(Hooks::SANITIZED_VALUE);
-        }
+        $sanitised = $this->sanitisedScalar($field, $value, $object->id);
 
         $this->withMirror($registered, $object, function () use ($registered, $object, $sanitised): void {
             $this->storeScalar($registered, $object, $sanitised);
@@ -81,10 +76,12 @@ final readonly class FieldWriter implements FieldWriterContract
 
         $this->assertItemCount($field, $items);
 
+        $sanitised = $this->sanitisedItems($field, $items);
+
         \do_action(Hooks::BEFORE_SAVE, $fieldId, $items, $field, $object->id);
 
-        $this->withMirror($registered, $object, function () use ($registered, $object, $items): void {
-            $this->storeItemList($registered, $object, $items);
+        $this->withMirror($registered, $object, function () use ($registered, $object, $sanitised): void {
+            $this->storeSanitisedItems($registered, $object, $sanitised);
         });
 
         \do_action(Hooks::AFTER_SAVE, $fieldId, $items, $field, $object->id);
@@ -136,7 +133,29 @@ final readonly class FieldWriter implements FieldWriterContract
             }
         }
 
-        return $this->storeGroup($group, $object, $values, $expectedHash);
+        // Guard 8 of the save lifecycle: sanitise exactly once, before the
+        // transaction opens, so a refused value never reaches the store step
+        // and the sanitised_value filter never fires inside a transaction.
+        $sanitised = [];
+
+        foreach ($values as $fieldId => $value) {
+            $field = $this->registry->field((string) $fieldId);
+
+            if ($field instanceof RepeaterField) {
+                if (\is_array($value)) {
+                    $this->assertItemCount($field, $value);
+                    $sanitised[$fieldId] = $this->sanitisedItems($field, $value);
+                } else {
+                    $sanitised[$fieldId] = null;
+                }
+
+                continue;
+            }
+
+            $sanitised[$fieldId] = $this->sanitisedScalar($field, \is_scalar($value) ? $value : null, $object->id);
+        }
+
+        return $this->storeGroup($group, $object, $sanitised, $expectedHash);
     }
 
     /**
@@ -152,22 +171,20 @@ final readonly class FieldWriter implements FieldWriterContract
         $mirrorGroup = $this->mirrorGroup($group, $object);
         $newHash = MirrorCodec::hash([]);
 
+        // The values arrive sanitised: sanitisation is guard 8, the store step
+        // is guard 9, and the order is the lifecycle's.
         $store = function () use ($group, $object, $values): void {
             foreach ($group->fields as $field) {
                 $registered = $this->registry->resolve($field->id);
-                $raw = $values[$field->id] ?? null;
+                $value = $values[$field->id] ?? null;
 
                 if ($field instanceof RepeaterField) {
-                    if (\is_array($raw)) {
-                        $this->assertItemCount($field, $raw);
-                    }
-
-                    $this->storeField($registered, $object, $raw);
+                    $this->storeSanitisedItems($registered, $object, \is_array($value) ? $value : null);
 
                     continue;
                 }
 
-                $this->storeField($registered, $object, \is_scalar($raw) ? $raw : null);
+                $this->storeScalar($registered, $object, \is_scalar($value) ? $value : null);
             }
         };
 
@@ -191,6 +208,50 @@ final readonly class FieldWriter implements FieldWriterContract
 
             $newHash = $this->mirror->write($object, $mirrorGroup->id, $this->snapshot->rows($mirrorGroup, $object));
         });
+
+        return $newHash;
+    }
+
+    public function writeField(string $fieldId, ObjectRef $object, string|int|float|bool|array|null $value, string $expectedHash): string
+    {
+        $registered = $this->registry->resolve($fieldId);
+        $this->assertContext($registered, $object);
+
+        $field = $registered->field;
+
+        if (StorageTarget::Table !== $registered->storage) {
+            throw InvalidFieldWrite::routeWritesMeta($fieldId);
+        }
+
+        \do_action(Hooks::BEFORE_SAVE, $fieldId, $value, $field, $object->id);
+
+        $sanitised = $field instanceof RepeaterField
+            ? (\is_array($value) ? $this->sanitisedItems($field, $value) : null)
+            : $this->sanitisedScalar($field, \is_scalar($value) ? $value : null, $object->id);
+
+        $group = $registered->group;
+        $newHash = '';
+
+        $this->gateway->transactional(function () use ($registered, $group, $object, $sanitised, $expectedHash, &$newHash): void {
+            // The lost-update guard is a read inside the transaction, before
+            // any write -- the same guard writeGroup() carries, for the one
+            // field the route writes.
+            $current = $this->mirror->currentHash($object, $group->id);
+
+            if (!hash_equals($current, $expectedHash)) {
+                throw ConcurrentEditLost::forGroup($group->id, $object->id);
+            }
+
+            if ($registered->field instanceof RepeaterField) {
+                $this->storeSanitisedItems($registered, $object, \is_array($sanitised) ? $sanitised : null);
+            } else {
+                $this->storeScalar($registered, $object, \is_scalar($sanitised) ? $sanitised : null);
+            }
+
+            $newHash = $this->mirror->write($object, $group->id, $this->snapshot->rows($group, $object));
+        });
+
+        \do_action(Hooks::AFTER_SAVE, $fieldId, $value, $field, $object->id);
 
         return $newHash;
     }
@@ -252,29 +313,45 @@ final readonly class FieldWriter implements FieldWriterContract
     }
 
     /**
-     * @param string|int|float|bool|list<string|int|float|bool>|null $raw
+     * The items arrive sanitised -- sanitisation happened once, in the caller's
+     * guard step -- so this is the store shape only. Null removes.
+     *
+     * @param list<string|int|float|bool>|null $items
      */
-    private function storeField(RegisteredField $registered, ObjectRef $object, string|int|float|bool|array|null $raw): void
+    private function storeSanitisedItems(RegisteredField $registered, ObjectRef $object, ?array $items): void
     {
         $field = $registered->field;
 
-        if ($field instanceof RepeaterField) {
-            if (null === $raw) {
-                $this->remove($registered, $object);
+        if (!$field instanceof RepeaterField) {
+            throw InvalidFieldWrite::itemsIntoScalar($registered->field->id);
+        }
 
-                return;
-            }
-
-            if (!\is_array($raw)) {
-                throw InvalidFieldWrite::scalarIntoRepeater($field->id);
-            }
-
-            $this->storeItemList($registered, $object, $raw);
+        if (null === $items) {
+            $this->remove($registered, $object);
 
             return;
         }
 
-        $this->storeScalar($registered, $object, \is_scalar($raw) ? $raw : null);
+        match ($registered->storage) {
+            StorageTarget::Meta => $this->meta->write($field, $object, RepeaterCodec::encode($items)),
+            StorageTarget::Table => $this->table->writeItems($field, $object, $items),
+        };
+    }
+
+    /**
+     * One field's own sanitiser, then the trust boundary the filter is. Fired
+     * before the transaction opens, so a wrong filter result never runs inside
+     * one, and exactly one sanitisation exists per value.
+     */
+    private function sanitisedScalar(Field $field, string|int|float|bool|null $raw, int $objectId): string|int|float|bool|null
+    {
+        $sanitised = \apply_filters(Hooks::SANITIZED_VALUE, $field->sanitise($raw), $field, $objectId);
+
+        if (null !== $sanitised && !\is_scalar($sanitised)) {
+            throw Exception\InvalidFilterResult::notASanitisedScalar(Hooks::SANITIZED_VALUE);
+        }
+
+        return $sanitised;
     }
 
     private function storeScalar(RegisteredField $registered, ObjectRef $object, string|int|float|bool|null $sanitised): void
@@ -288,25 +365,6 @@ final readonly class FieldWriter implements FieldWriterContract
         match ($registered->storage) {
             StorageTarget::Meta => $this->meta->write($registered->field, $object, $sanitised),
             StorageTarget::Table => $this->table->write($registered->field, $object, $sanitised),
-        };
-    }
-
-    /**
-     * @param list<mixed> $items
-     */
-    private function storeItemList(RegisteredField $registered, ObjectRef $object, array $items): void
-    {
-        $field = $registered->field;
-
-        if (!$field instanceof RepeaterField) {
-            throw InvalidFieldWrite::itemsIntoScalar($registered->field->id);
-        }
-
-        $sanitised = $this->sanitisedItems($field, $items);
-
-        match ($registered->storage) {
-            StorageTarget::Meta => $this->meta->write($field, $object, RepeaterCodec::encode($sanitised)),
-            StorageTarget::Table => $this->table->writeItems($field, $object, $sanitised),
         };
     }
 

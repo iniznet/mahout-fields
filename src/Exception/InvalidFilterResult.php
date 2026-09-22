@@ -28,6 +28,16 @@ final class InvalidFilterResult extends \UnexpectedValueException implements Mah
         return new self('The sanitized_value filter must return a scalar or null.', $hook);
     }
 
+    public static function notAControlMap(string $hook): self
+    {
+        return new self('The editor_controls filter must return an array keyed by field type.', $hook);
+    }
+
+    public static function notAControl(string $hook): self
+    {
+        return new self('The editor_controls filter must map field types to FieldControl implementations.', $hook);
+    }
+
     public function hook(): string
     {
         return $this->hook;

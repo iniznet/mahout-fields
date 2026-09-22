@@ -10,9 +10,9 @@ namespace Iniznet\Mahout\Fields;
  */
 final readonly class TextAreaField extends Field
 {
-    public function __construct(string $id, StorageTarget $storage)
+    public function __construct(string $id, StorageTarget $storage, ?PersonalData $personalData = null, ?string $label = null)
     {
-        parent::__construct($id, $storage);
+        parent::__construct($id, $storage, $personalData, $label);
     }
 
     #[\Override]

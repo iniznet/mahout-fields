@@ -25,8 +25,29 @@ abstract readonly class Field
     protected function __construct(
         public string $id,
         public StorageTarget $storage,
+        public readonly ?PersonalData $personalData = null,
+        public readonly ?string $label = null,
     ) {
         self::assertId('field', $id);
+    }
+
+    /**
+     * The control's empty-state wording, produced by the field type and never
+     * assembled in a markup file, so an advanced type can say something more
+     * useful than a generic "no value".
+     */
+    public function emptyLabel(): string
+    {
+        return match ($this->type()) {
+            FieldType::Text => __('No value set.', 'mahout-fields'),
+            FieldType::TextArea => __('No content yet.', 'mahout-fields'),
+            FieldType::Email => __('No address set.', 'mahout-fields'),
+            FieldType::Url => __('No link set.', 'mahout-fields'),
+            FieldType::Choice => __('Nothing selected.', 'mahout-fields'),
+            FieldType::Integer, FieldType::Decimal, FieldType::Boolean => __('Not set.', 'mahout-fields'),
+            FieldType::Date => __('No date set.', 'mahout-fields'),
+            FieldType::Repeater => __('No items yet.', 'mahout-fields'),
+        };
     }
 
     abstract public function type(): FieldType;

@@ -127,6 +127,18 @@ abstract class TestCase extends \WP_UnitTestCase
     }
 
     /**
+     * A production-threshold Diagnostics: warning refusals record without
+     * touching the error log, and a test reads them back through records().
+     */
+    protected function diagnostics(): \Iniznet\Mahout\Kernel\Diagnostics
+    {
+        return new \Iniznet\Mahout\Kernel\Diagnostics(
+            environment: new \Iniznet\Mahout\Kernel\Environment(type: 'production', debug: false, developmentMode: false),
+            queries: new Fixtures\CountingQuerySource(),
+        );
+    }
+
+    /**
      * One raw row of a field table, by its key columns, or null when absent.
      *
      * @return array<string, string|null>|null
