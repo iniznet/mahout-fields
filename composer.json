@@ -1,0 +1,71 @@
+{
+    "name": "iniznet/mahout-fields",
+    "description": "Field declarations, storage targets, both storage adapters and the repeater codec for the mahout family.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "keywords": [
+        "wordpress",
+        "mahout",
+        "fields",
+        "storage",
+        "meta",
+        "custom-table",
+        "repeater"
+    ],
+    "require": {
+        "php": ">=8.4",
+        "iniznet/mahout-kernel": "^1.0",
+        "iniznet/mahout-db": "^1.0",
+        "iniznet/mahout-content": "^1.0"
+    },
+    "require-dev": {
+        "iniznet/mahout-devtools": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Iniznet\\Mahout\\Fields\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Iniznet\\Mahout\\Fields\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "allow-plugins": {}
+    },
+    "scripts": {
+        "format": "php-cs-fixer fix",
+        "format:check": "php-cs-fixer fix --dry-run --diff",
+        "stan": "phpstan analyse -c phpstan.neon --no-progress --memory-limit=2G",
+        "psalm": "psalm --taint-analysis --no-cache",
+        "arch": "phpstan analyse -c phpstan.neon --no-progress --memory-limit=2G",
+        "rector": "rector --dry-run --no-progress-bar",
+        "test": "php vendor/bin/phpunit -c phpunit.xml.dist",
+        "hooks:check": "php vendor/bin/mahout-devtools hooks:check --source=src --output=docs/reference/hooks.md",
+        "hooks:generate": "php vendor/bin/mahout-devtools hooks:generate --source=src --output=docs/reference/hooks.md",
+        "i18n:check": "php vendor/bin/mahout-devtools i18n:check --domain=mahout-fields --source=src --output=languages/mahout-fields.pot",
+        "i18n:generate": "php vendor/bin/mahout-devtools i18n:generate --domain=mahout-fields --source=src --output=languages/mahout-fields.pot",
+        "doctor": "php vendor/bin/mahout-devtools doctor",
+        "config:check": "php vendor/bin/mahout-devtools config:check",
+        "check": [
+            "@format:check",
+            "@stan",
+            "@psalm",
+            "@arch",
+            "@rector",
+            "@test",
+            "@hooks:check",
+            "@i18n:check",
+            "@doctor",
+            "@config:check"
+        ]
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev"
+        }
+    }
+}
