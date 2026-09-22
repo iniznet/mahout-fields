@@ -9,6 +9,7 @@ use Iniznet\Mahout\Db\Contracts\SqlConnection;
 use Iniznet\Mahout\Db\Row;
 use Iniznet\Mahout\Db\Table;
 use Iniznet\Mahout\Fields\FieldValuesTable;
+use Iniznet\Mahout\Fields\ObjectKind;
 
 /**
  * The value table's orphan source: one row per field per object, every row
@@ -37,7 +38,10 @@ final readonly class PostValueOrphans implements OrphanSource
     #[\Override]
     public function keyForPost(int $postId): Row
     {
-        return Row::of($this->table, [FieldValuesTable::objectIdColumn() => $postId]);
+        return Row::of($this->table, [
+            FieldValuesTable::objectKindColumn() => ObjectKind::Post->value,
+            FieldValuesTable::objectIdColumn() => $postId,
+        ]);
     }
 
     #[\Override]

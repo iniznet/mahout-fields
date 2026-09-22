@@ -9,6 +9,7 @@ use Iniznet\Mahout\Db\Contracts\SqlConnection;
 use Iniznet\Mahout\Db\Row;
 use Iniznet\Mahout\Db\Table;
 use Iniznet\Mahout\Fields\FieldItemsTable;
+use Iniznet\Mahout\Fields\ObjectKind;
 
 /**
  * The items table's orphan source: one row per repeater item, addressed by
@@ -37,7 +38,10 @@ final readonly class PostItemOrphans implements OrphanSource
     #[\Override]
     public function keyForPost(int $postId): Row
     {
-        return Row::of($this->table, [FieldItemsTable::objectIdColumn() => $postId]);
+        return Row::of($this->table, [
+            FieldItemsTable::objectKindColumn() => ObjectKind::Post->value,
+            FieldItemsTable::objectIdColumn() => $postId,
+        ]);
     }
 
     #[\Override]
