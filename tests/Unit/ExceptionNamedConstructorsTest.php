@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Tests\Unit;
 
+use Iniznet\Mahout\Fields\Exception\ConcurrentEditLost;
 use Iniznet\Mahout\Fields\Exception\DuplicateFieldId;
 use Iniznet\Mahout\Fields\Exception\FieldNotFound;
 use Iniznet\Mahout\Fields\Exception\GroupAlreadyRegistered;
+use Iniznet\Mahout\Fields\Exception\GroupNotFound;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldDefinition;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldId;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldValue;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\Exception\InvalidFilterResult;
+use Iniznet\Mahout\Fields\Exception\InvalidMirrorPayload;
 use Iniznet\Mahout\Fields\Exception\InvalidRepeaterPayload;
 use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Exception\MahoutException;
@@ -42,6 +45,9 @@ final class ExceptionNamedConstructorsTest extends TestCase
         InvalidFilterResult::class,
         InvalidRepeaterPayload::class,
         RepeaterTooLarge::class,
+        ConcurrentEditLost::class,
+        GroupNotFound::class,
+        InvalidMirrorPayload::class,
     ];
 
     public function testEveryPackageExceptionImplementsTheMarker(): void
@@ -49,6 +55,34 @@ final class ExceptionNamedConstructorsTest extends TestCase
         foreach (self::ALL as $exception) {
             self::assertContains(MahoutException::class, class_implements($exception) ?: [], $exception);
         }
+    }
+
+    public function testConcurrentEditLostNamesTheGroupAndTheObject(): void
+    {
+        $refusal = ConcurrentEditLost::forGroup('fixture_group', 42);
+
+        self::assertSame('fixture_group', $refusal->groupId());
+        self::assertSame(42, $refusal->objectId());
+        self::assertStringContainsString('fixture_group', $refusal->getMessage());
+    }
+
+    public function testGroupNotFoundNamesTheGroup(): void
+    {
+        $refusal = GroupNotFound::forId('fixture_group');
+
+        self::assertSame('fixture_group', $refusal->groupId());
+        self::assertStringContainsString('fixture_group', $refusal->getMessage());
+    }
+
+    public function testInvalidMirrorPayloadCarriesTheGroupAndItsReason(): void
+    {
+        $malformed = InvalidMirrorPayload::malformed('fixture_group', 'Syntax error');
+        $unknown = InvalidMirrorPayload::unknownField('fixture_group', 'fixture_text');
+
+        self::assertSame('fixture_group', $malformed->groupId());
+        self::assertSame('malformed', $malformed->reason());
+        self::assertSame('fixture_group', $unknown->groupId());
+        self::assertSame('unknown_field', $unknown->reason());
     }
 
     public function testFieldNotFoundNamesTheField(): void

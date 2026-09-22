@@ -12,9 +12,12 @@ use Iniznet\Mahout\Db\Table;
 use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry as FieldRegistryContract;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
+use Iniznet\Mahout\Fields\Internal\GroupSnapshot;
 use Iniznet\Mahout\Fields\Internal\MetaStorage;
 use Iniznet\Mahout\Fields\Internal\PostItemOrphans;
 use Iniznet\Mahout\Fields\Internal\PostValueOrphans;
+use Iniznet\Mahout\Fields\Internal\RevisionMirror;
+use Iniznet\Mahout\Fields\Internal\RevisionRestorer;
 use Iniznet\Mahout\Fields\Internal\TableStorage;
 use Iniznet\Mahout\Kernel\Container;
 use Iniznet\Mahout\Kernel\Contracts\ServiceProvider;
@@ -49,19 +52,40 @@ final class FieldsProvider implements ServiceProvider
 
         $meta = new MetaStorage();
         $table = new TableStorage($gateway, $valuesTable, $itemsTable);
+        $mirror = new RevisionMirror();
         $registry = new FieldRegistry();
 
         $container->set(service: $registry, id: FieldRegistryContract::class);
-        $container->set(service: new FieldReader($registry, $meta, $table), id: FieldReaderContract::class);
-        $container->set(service: new FieldWriter($registry, $meta, $table), id: FieldWriterContract::class);
+        $container->set(service: new FieldReader($registry, $meta, $table, $mirror), id: FieldReaderContract::class);
+        $container->set(service: new FieldWriter($registry, $meta, $table, $gateway, $mirror, new GroupSnapshot($registry, $table)), id: FieldWriterContract::class);
 
         $this->attachMigrations($connection, $emitter);
         $this->attachOrphanSources($connection, $valuesTable, $itemsTable);
+        $this->attachRestore(new RevisionRestorer($registry, $gateway, $table, $mirror));
     }
 
     public function boot(Container $container): void
     {
         \do_action(Hooks::REGISTRY_LOADED, $container->get(FieldRegistryContract::class));
+    }
+
+    /**
+     * The revision restore's rehydrator, at priority 20: core's own meta
+     * restore runs at 10 on wp_restore_post_revision, and the table is
+     * rehydrated from the restored mirror after it, in one transaction. Core's
+     * mechanism does the copying; the rehydrator only turns the restored
+     * payload back into rows.
+     */
+    private function attachRestore(RevisionRestorer $restorer): void
+    {
+        \add_action(
+            Hooks::RESTORE_POST_REVISION,
+            static function (int $postId) use ($restorer): void {
+                $restorer->restore($postId);
+            },
+            priority: 20,
+            accepted_args: 1,
+        );
     }
 
     /**

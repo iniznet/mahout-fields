@@ -90,9 +90,11 @@ final readonly class TableStorage
 
     /**
      * One row per item at an explicit position, replacing whatever the field
-     * held, in one transaction.
+     * held, in one transaction. The items arrive already sanitised -- the
+     * writer sanitises exactly once, for both targets -- so the adapter
+     * canonicalises and stores, and never sanitises.
      *
-     * @param list<string|int|float|bool> $items the raw item values, sanitised once here
+     * @param list<string|int|float|bool> $items the sanitised item values
      */
     public function writeItems(RepeaterField $field, ObjectRef $object, array $items): void
     {
@@ -176,13 +178,13 @@ final readonly class TableStorage
     }
 
     /**
-     * The one sanitisation of an item, into its declared column's shape.
+     * The item's declared column's shape. The item arrives sanitised; the
+     * adapter only canonicalises it into its column.
      *
      * @return array<string, string|int|null>
      */
     private function itemColumns(RepeaterField $field, string|int|float|bool $item): array
     {
-        $sanitised = $field->item->sanitise($item);
         $column = FieldValuesTable::itemColumnFor($field->item->type());
 
         $row = [
@@ -190,9 +192,7 @@ final readonly class TableStorage
             FieldItemsTable::intColumn() => null,
         ];
 
-        if (null !== $sanitised) {
-            $row[$column] = $this->stored($sanitised);
-        }
+        $row[$column] = $this->stored($item);
 
         return $row;
     }

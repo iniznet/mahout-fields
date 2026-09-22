@@ -21,6 +21,7 @@ interface FieldRegistry
     public function has(string $fieldId): bool;
     public function resolve(string $fieldId): RegisteredField;
     public function field(string $fieldId): Field;
+    public function group(string $groupId): FieldGroup;
     /** @return list<FieldGroup> */
     public function groups(): array;
 }
@@ -30,7 +31,7 @@ interface FieldRegistry
 |---|---|
 | Role | owns the declared fields and the resolved storage target of each |
 | Implementation in this package | `FieldRegistry` |
-| Throws | `FieldNotFound` for an unknown id, `GroupAlreadyRegistered`, `DuplicateFieldId`, `InvalidStorageCombination`, `InvalidFieldId` |
+| Throws | `FieldNotFound` for an unknown id, `GroupNotFound` for an unknown group id, `GroupAlreadyRegistered`, `DuplicateFieldId`, `InvalidStorageCombination`, `InvalidFieldId` |
 | Emitted hook | `mahout/fields/group_registered` per group, `mahout/fields/registry_loaded` with the registry on boot |
 
 An id answers to exactly one field across every group. A queried repeater may
@@ -46,7 +47,9 @@ target invisible at every call site.
 interface FieldReader
 {
     public function value(string $fieldId, ObjectRef $object): string|int|float|bool|null;
+    /** @return list<string|int|float|bool|null>|list<array<string, string|int|float|bool>> */
     public function items(string $fieldId, ObjectRef $object): array;
+    public function hash(string $groupId, ObjectRef $object): string;
 }
 ```
 
@@ -57,6 +60,14 @@ interface FieldReader
 | Throws | `FieldNotFound`, `InvalidFieldContext` when the object's context is not the group's, `InvalidRepeaterPayload` for a broken envelope |
 | Filters | `mahout/fields/value` and its per-field variant, both scalar-only |
 
+### `Contracts\FieldReader::hash()`
+
+The hash an editor form carries: the group's stored mirror hash, or the empty
+row set's hash when no mirror exists yet. Reading it back from the stored
+payload — never recomputing it from the table — is what makes an out-of-band
+table write a lost update instead of a blessed one. It is the `$expectedHash`
+argument of `FieldWriter::writeGroup()`.
+
 ### `Contracts\\FieldWriter`
 
 The write path. Sanitisation happens here, once, before storage — never in the
@@ -65,23 +76,51 @@ consumer.
 ```php
 interface FieldWriter
 {
-    /** @param array<int, string|int|float|bool> $items */
+    /** @param list<string|int|float|bool> $items the raw item values */
     public function setItems(string $fieldId, ObjectRef $object, array $items): void;
     public function set(string $fieldId, ObjectRef $object, string|int|float|bool|null $value): void;
     public function delete(string $fieldId, ObjectRef $object): void;
+
+    /**
+     * @param array<string, string|int|float|bool|list<string|int|float|bool>|null> $values field id to raw value, or raw item list for a repeater
+     * @return string the mirror hash after the write
+     * @throws ConcurrentEditLost when the expected hash does not match
+     */
+    public function writeGroup(string $groupId, ObjectRef $object, array $values, string $expectedHash): string;
 }
 ```
 
 | | |
 |---|---|
-| Role | sanitises once, stores on the declared target, removes on `null` |
+| Role | sanitises once, stores on the declared target, removes on `null`; a write that touches a Table-bound field joins the group's revision mirror into the same transaction |
 | Implementation in this package | `FieldWriter` |
-| Throws | `InvalidFieldValue` for a refused value, `RepeaterTooLarge` above the declared cap, `InvalidFieldWrite` for a shape mismatch |
+| Throws | `InvalidFieldValue` for a refused value, `RepeaterTooLarge` above the declared cap, `InvalidFieldWrite` for a shape mismatch, `ConcurrentEditLost` on a lost update |
 | Emitted hooks | `mahout/fields/before_save`, `mahout/fields/after_save` carrying the raw caller value |
 
+### `Contracts\FieldWriter::writeGroup()`
+
+The store step of the save lifecycle, and the unit the guards call:
+
+```php
+$newHash = $writer->writeGroup(
+    'series_credits',
+    ObjectRef::post($postId),
+    ['series_order' => 3, 'series_items' => ['paperback', 'hardcover']],
+    $expectedHash,
+);
+```
+
+The whole group is one transaction: the guard reads the group's mirror hash
+after the transaction opens and before the first write, `ConcurrentEditLost`
+rolls everything back when the form's hash is stale, and the mirror is
+written last — so a forced mirror failure leaves the tables unchanged, and
+nothing is partially applied, substituted or retried. A submitted id the
+group does not declare is a mass-assignment attempt and is refused with
+`FieldNotFound`; nothing is written.
+
 The save lifecycle's guards — autosave, revision, foreign form, post lock,
-capability, nonce — wrap these calls in the save-lifecycle slice; they are not
-part of this contract.
+capability, nonce — wrap this call in the save-lifecycle slice; the guard it
+reads is part of this contract.
 
 ## Value objects
 

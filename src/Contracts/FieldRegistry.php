@@ -6,6 +6,7 @@ namespace Iniznet\Mahout\Fields\Contracts;
 
 use Iniznet\Mahout\Fields\Exception\FieldNotFound;
 use Iniznet\Mahout\Fields\Exception\GroupAlreadyRegistered;
+use Iniznet\Mahout\Fields\Exception\GroupNotFound;
 use Iniznet\Mahout\Fields\Exception\InvalidFilterResult;
 use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Field;
@@ -48,6 +49,13 @@ interface FieldRegistry
      * @throws FieldNotFound
      */
     public function field(string $fieldId): Field;
+
+    /**
+     * The declared group with this id.
+     *
+     * @throws GroupNotFound when no registered group carries the id
+     */
+    public function group(string $groupId): FieldGroup;
 
     /**
      * @return list<FieldGroup>

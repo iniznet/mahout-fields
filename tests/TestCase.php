@@ -14,7 +14,10 @@ use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter;
 use Iniznet\Mahout\Fields\FieldItemsTable;
 use Iniznet\Mahout\Fields\FieldValuesTable;
+use Iniznet\Mahout\Fields\Internal\GroupSnapshot;
 use Iniznet\Mahout\Fields\Internal\MetaStorage;
+use Iniznet\Mahout\Fields\Internal\RevisionMirror;
+use Iniznet\Mahout\Fields\Internal\RevisionRestorer;
 use Iniznet\Mahout\Fields\Internal\TableStorage;
 
 /**
@@ -43,6 +46,10 @@ abstract class TestCase extends \WP_UnitTestCase
 
     private WpdbConnection $connection;
 
+    protected RevisionMirror $mirror;
+
+    protected GroupSnapshot $snapshot;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -57,9 +64,19 @@ abstract class TestCase extends \WP_UnitTestCase
 
         $meta = new MetaStorage();
         $table = new TableStorage($this->gateway, $this->valuesTable, $this->itemsTable);
+        $mirror = new RevisionMirror();
         $this->registry = new \Iniznet\Mahout\Fields\FieldRegistry();
-        $this->reader = new \Iniznet\Mahout\Fields\FieldReader($this->registry, $meta, $table);
-        $this->writer = new \Iniznet\Mahout\Fields\FieldWriter($this->registry, $meta, $table);
+        $this->reader = new \Iniznet\Mahout\Fields\FieldReader($this->registry, $meta, $table, $mirror);
+        $this->writer = new \Iniznet\Mahout\Fields\FieldWriter(
+            $this->registry,
+            $meta,
+            $table,
+            $this->gateway,
+            $mirror,
+            new GroupSnapshot($this->registry, $table),
+        );
+        $this->mirror = $mirror;
+        $this->snapshot = new GroupSnapshot($this->registry, $table);
     }
 
     protected function tearDown(): void
@@ -72,6 +89,16 @@ abstract class TestCase extends \WP_UnitTestCase
     protected function connection(): WpdbConnection
     {
         return $this->connection;
+    }
+
+    protected function restorer(): RevisionRestorer
+    {
+        return new RevisionRestorer(
+            $this->registry,
+            $this->gateway,
+            new TableStorage($this->gateway, $this->valuesTable, $this->itemsTable),
+            $this->mirror,
+        );
     }
 
     protected function postId(): int

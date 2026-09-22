@@ -151,6 +151,22 @@ final class Hooks
     public const string STORAGE_TARGET = 'mahout/fields/storage_target';
 
     /**
+     * Core's revision-restore action, observed at priority 20 by the package's
+     * rehydrator: core's own meta restore runs at 10, and the table is
+     * rehydrated from the restored mirror after it. This is a core hook, not a
+     * mahout one; it is declared here because the rule that bans a raw hook
+     * name applies to a core hook as much as to a mahout one.
+     *
+     * @since 1.0
+     *
+     * @action
+     *
+     * @param int $postId     the post the revision was restored onto
+     * @param int $revisionId the revision that was restored
+     */
+    public const string RESTORE_POST_REVISION = 'wp_restore_post_revision';
+
+    /**
      * The one permitted dynamic hook form, and the one site it is constructed.
      *
      * @filter

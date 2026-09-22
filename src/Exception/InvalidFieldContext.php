@@ -25,6 +25,16 @@ final class InvalidFieldContext extends \LogicException implements MahoutExcepti
         return new self(sprintf('Field "%s" is declared for the %s context; the call named %s.', $fieldId, $declared, $given), $fieldId, $declared, $given);
     }
 
+    public static function migrationUnsupported(string $fieldId, string $declared): self
+    {
+        return new self(
+            sprintf('Field "%s" is declared for the %s context; only post-context fields migrate, because revisions are post-only.', $fieldId, $declared),
+            $fieldId,
+            $declared,
+            'post',
+        );
+    }
+
     public function fieldId(): string
     {
         return $this->fieldId;

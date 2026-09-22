@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Iniznet\Mahout\Fields\Contracts;
 
 use Iniznet\Mahout\Fields\Exception\FieldNotFound;
+use Iniznet\Mahout\Fields\Exception\GroupNotFound;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
+use Iniznet\Mahout\Fields\Exception\InvalidMirrorPayload;
 use Iniznet\Mahout\Fields\Exception\InvalidRepeaterPayload;
 use Iniznet\Mahout\Fields\ObjectRef;
 
@@ -35,4 +37,16 @@ interface FieldReader
      * @throws InvalidRepeaterPayload
      */
     public function items(string $fieldId, ObjectRef $object): array;
+
+    /**
+     * The expected-state hash an editor form carries for one group: the
+     * revision mirror's hash, or the empty row set's hash before the first
+     * guarded save. The write compares it inside the transaction; a mismatch
+     * is a concurrent edit lost.
+     *
+     * @throws GroupNotFound        when no registered group carries the id
+     * @throws InvalidFieldContext  when the object's context is not the group's
+     * @throws InvalidMirrorPayload when the stored mirror is broken
+     */
+    public function hash(string $groupId, ObjectRef $object): string;
 }

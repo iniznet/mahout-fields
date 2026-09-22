@@ -22,6 +22,14 @@ final class FieldNotFound extends \InvalidArgumentException implements MahoutExc
         return new self(sprintf('Field "%s" is not registered.', $fieldId), $fieldId);
     }
 
+    public static function inGroup(string $fieldId, string $groupId): self
+    {
+        return new self(
+            sprintf('Field "%s" is not declared by group "%s"; a submitted id outside the declaration is a mass-assignment attempt.', $fieldId, $groupId),
+            $fieldId,
+        );
+    }
+
     public function fieldId(): string
     {
         return $this->fieldId;

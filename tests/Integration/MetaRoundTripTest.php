@@ -129,8 +129,16 @@ final class MetaRoundTripTest extends TestCase
         try {
             $meta = new \Iniznet\Mahout\Fields\Internal\MetaStorage();
             $table = new \Iniznet\Mahout\Fields\Internal\TableStorage($this->gateway, $this->valuesTable, $this->itemsTable);
-            $writer = new \Iniznet\Mahout\Fields\FieldWriter($registry, $meta, $table);
-            $reader = new \Iniznet\Mahout\Fields\FieldReader($registry, $meta, $table);
+            $mirror = new \Iniznet\Mahout\Fields\Internal\RevisionMirror();
+            $writer = new \Iniznet\Mahout\Fields\FieldWriter(
+                $registry,
+                $meta,
+                $table,
+                $this->gateway,
+                $mirror,
+                new \Iniznet\Mahout\Fields\Internal\GroupSnapshot($registry, $table),
+            );
+            $reader = new \Iniznet\Mahout\Fields\FieldReader($registry, $meta, $table, $mirror);
 
             // The declaration says Table; the filter's resolution is what
             // the adapters dispatch on.

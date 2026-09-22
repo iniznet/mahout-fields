@@ -49,6 +49,24 @@ final class InvalidFieldWrite extends \LogicException implements MahoutException
         return new self(sprintf('The meta backend refused the write for field "%s".', $fieldId), $fieldId, 'backend');
     }
 
+    public static function foreignObjectKind(string $fieldId): self
+    {
+        return new self(
+            sprintf('Field "%s" holds a row for an object kind its group does not declare; refusing to move it.', $fieldId),
+            $fieldId,
+            'kind',
+        );
+    }
+
+    public static function recordedItems(string $fieldId): self
+    {
+        return new self(
+            sprintf('Repeater "%s" stores records; the items table holds one scalar per item. Bind a dedicated table instead of migrating.', $fieldId),
+            $fieldId,
+            'shape',
+        );
+    }
+
     public function fieldId(): string
     {
         return $this->fieldId;

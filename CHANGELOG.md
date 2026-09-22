@@ -7,6 +7,35 @@ order. The format follows Semantic Versioning; a major entry names each removal.
 
 ### Added
 
+- The integrity core: `FieldWriter::writeGroup()`, the store step of the save
+  lifecycle — one transaction for the whole group, the lost-update guard read
+  inside it before the first write, and the group's revision mirror written
+  last.
+- `Contracts\FieldWriter::writeGroup()`, `Contracts\FieldReader::hash()` and
+  `Contracts\FieldRegistry::group()`, the three contract additions this slice
+  makes.
+- `MirrorCodec`: the versioned `{"v":1,"schema":1,"hash":...,"rows":[...]}`
+  revision-mirror payload, its sha256 reference hash over the canonical row
+  set, and the loud refusal of any malformed, mis-versioned or mis-shaped
+  payload.
+- `Internal\RevisionMirror`: the mirror's registration through
+  `register_meta()` with `revisions_enabled`, its guarded write and its
+  read-back, keyed `_mahout_mirror_<groupId>` and never exposed in REST.
+- `Internal\GroupSnapshot`: the group's canonical row set read from the
+  adapters inside the caller's transaction, one row per Table-bound field in
+  declaration order.
+- `Internal\RevisionRestorer`: the revision-restore rehydrator at priority
+  20, rewriting the group's table rows from the restored mirror — an absent
+  row removes, a payload field the group no longer declares is refused.
+- `MigrateFieldMetaToTable` and `MigrateFieldTableToMeta`: per-field
+  migrations between the storage targets, both directions through the
+  adapters, keyset-bounded discovery, one transaction per chunk, and a loud
+  refusal of any non-post-context field.
+- `Capabilities`, the package's typed capability constants.
+- `ConcurrentEditLost`, `GroupNotFound` and `InvalidMirrorPayload`, the three
+  new exceptions with private constructors, named constructors and typed
+  context getters.
+
 - `Field` and its ten concrete declarations: `TextField`, `TextAreaField`,
   `EmailField`, `UrlField`, `ChoiceField`, `IntegerField`, `DecimalField`,
   `BooleanField`, `DateField` and `RepeaterField`, each final and readonly,

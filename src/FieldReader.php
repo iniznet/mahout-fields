@@ -8,6 +8,7 @@ use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\Internal\MetaStorage;
+use Iniznet\Mahout\Fields\Internal\RevisionMirror;
 use Iniznet\Mahout\Fields\Internal\TableStorage;
 
 /**
@@ -25,6 +26,7 @@ final readonly class FieldReader implements FieldReaderContract
         private readonly FieldRegistry $registry,
         private readonly MetaStorage $meta,
         private readonly TableStorage $table,
+        private readonly RevisionMirror $mirror,
     ) {
     }
 
@@ -114,6 +116,20 @@ final readonly class FieldReader implements FieldReaderContract
             static fn (array $item): string|int|float|bool|null => $item['value'],
             $this->table->readItems($field, $object),
         );
+    }
+
+    public function hash(string $groupId, ObjectRef $object): string
+    {
+        $group = $this->registry->group($groupId);
+
+        if ($group->context !== $object->context) {
+            throw InvalidFieldContext::mismatch($groupId, $group->context->value, $object->context->value);
+        }
+
+        // The hash is read back from the mirror, never recomputed from the
+        // table: the mirror is the reference the form was rendered against,
+        // and an out-of-band table edit is caught rather than blessed.
+        return $this->mirror->currentHash($object, $groupId);
     }
 
     private function assertContext(RegisteredField $registered, ObjectRef $object): void

@@ -96,6 +96,16 @@ final class FieldRegistry implements FieldRegistryContract
     }
 
     /**
+     * The declared group with this id.
+     *
+     * @throws Exception\GroupNotFound when no registered group carries the id
+     */
+    public function group(string $groupId): FieldGroup
+    {
+        return $this->groups[$groupId] ?? throw Exception\GroupNotFound::forId($groupId);
+    }
+
+    /**
      * @return list<FieldGroup>
      */
     public function groups(): array
