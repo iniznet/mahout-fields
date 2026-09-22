@@ -45,24 +45,3 @@ final readonly class WriteFailureNotice
         return 'mahout_fields_write_failed_'.(int) $postId;
     }
 }
-
-/** One queued refusal, taken off the transient. */
-final readonly class QueuedRefusal
-{
-    private function __construct(
-        public string $groupId,
-        public string $reason,
-        public string $reference,
-    ) {
-    }
-
-    /** @param array<mixed, mixed> $payload */
-    public static function fromPayload(array $payload): self
-    {
-        return new self(
-            \is_string($payload['group'] ?? null) ? $payload['group'] : '',
-            \is_string($payload['reason'] ?? null) ? $payload['reason'] : '',
-            \is_string($payload['reference'] ?? null) ? $payload['reference'] : '',
-        );
-    }
-}
