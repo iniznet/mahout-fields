@@ -363,8 +363,11 @@ service locator reached for statically, no trait, no dynamic property, no
 ### The storage half
 
 Field declarations, both storage adapters and the repeater codec are this
-package's, per the Phase 6 deliverable. The theme consumes them; the save
-lifecycle and the editor registry are the next two slices.
+package's, per the Phase 6 deliverable. The theme consumes them. The save
+lifecycle, the editor controls, the field REST route and the admin UI are
+here too, but the UI is the opt-in `Admin\FieldsUiProvider`: the storage core
+renders nothing, and the editing surface is derived from the host's
+`Contracts\Panels` declaration and from nothing else.
 
 - `FieldRegistry` runs every cross-field rule at registration, against the
   resolved target, never the declaration alone. A filter result of the wrong

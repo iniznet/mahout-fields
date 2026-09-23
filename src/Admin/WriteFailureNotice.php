@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Iniznet\Mahout\Fields\Admin;
 
 /**
- * The per-user write-failure notice. save_post must not wp_die(), so a
- * refused classic-path save is queued as a one-shot transient for the user
- * who submitted the form and surfaced by the host's AdminProvider on the
- * next admin screen load. Queue and take are the only operations; nothing is
+ * The per-user write-failure notice: the refusal store. save_post must not
+ * wp_die(), so a refused classic-path save is queued as a one-shot transient
+ * for the user who submitted the form and surfaced on the next admin screen
+ * load by Admin\WriteFailureNoticeRenderer, which Admin\FieldsUiProvider
+ * attaches. Queue and take are the only operations here, and nothing is
  * retried and nothing is substituted.
  */
 final readonly class WriteFailureNotice

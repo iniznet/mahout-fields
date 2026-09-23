@@ -7,6 +7,23 @@ order. The format follows Semantic Versioning; a major entry names each removal.
 
 ### Added
 
+- `Admin\FieldsUiProvider`: the opt-in fields admin UI. It owns the two
+  container seams `Contracts\ControlRegistry` and `Contracts\FieldEditor`, and
+  derives every metabox, the classic save entry, the value route with its read
+  bindings and the write-failure notice from the host's `Contracts\Panels`
+  declaration — attaching nothing when no panels are bound and when the
+  declaration is empty. `FieldsProvider` renders nothing and depends on no
+  `Admin\` class.
+- `Contracts\ControlRegistry`, the field-type to control lookup the editor
+  renders through: `control()` refuses loudly, `has()` only reports, and a type
+  is named by its enum case or by that case's value. `Admin\FieldTypeRegistry`
+  implements it and `Admin\FieldEditor` type-hints it.
+- `Contracts\Panels`, the host's declared panel collection, and `FieldPanel`,
+  the value that pairs a group with the post type whose edit screen renders it,
+  refused with `InvalidPanelDeclaration` when it names no screen.
+- `Admin\WriteFailureNoticeRenderer`, the notice's presentation, split from
+  `Admin\WriteFailureNotice`, its store.
+- `Hooks::ADMIN_NOTICES`, the core hook the queued refusal is surfaced on.
 - The integrity core: `FieldWriter::writeGroup()`, the store step of the save
   lifecycle — one transaction for the whole group, the lost-update guard read
   inside it before the first write, and the group's revision mirror written

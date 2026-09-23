@@ -11,8 +11,8 @@ namespace Iniznet\Mahout\Fields\Contracts;
  * this package.
  *
  * A host adapts its own request object to this contract -- the theme's
- * Request is the one superglobal reader -- and injects it into
- * Admin\FieldSaveHandler.
+ * Request is the one superglobal reader -- and binds it under this id, which
+ * is how Admin\FieldsUiProvider's save handler receives it.
  */
 interface RequestInput
 {

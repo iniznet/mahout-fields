@@ -45,7 +45,7 @@ final readonly class FieldRestRoute
     ) {
     }
 
-    /** The rest_api_init entry, attached by the host's AdminProvider. */
+    /** The rest_api_init entry, attached by Admin\FieldsUiProvider. */
     public function register(): void
     {
         \register_rest_route(self::ROUTE_NAMESPACE, self::ROUTE, [

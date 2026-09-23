@@ -124,13 +124,74 @@ reads is part of this contract.
 
 ## Value objects
 
-`FieldGroup`, `Field` and its ten concrete field classes, `StorageTarget`,
-`FieldType`, `ObjectContext`, `ObjectKind`, `ObjectRef`, `RegisteredField`
+`FieldGroup`, `Field` and its ten concrete field classes, `FieldPanel`,
+`StorageTarget`, `FieldType`, `ObjectContext`, `ObjectKind`, `ObjectRef`,
+`RegisteredField`
 are public values a consumer constructs and passes. They are `final readonly`
 and carry no collaborator; the static `table()` factories on the two schema
 declarations are value factories, which the static-access contract permits.
 `FieldValuesTable`, `FieldItemsTable`, `RepeaterCodec` and `Hooks` are
 documented in the generated hook reference and the architecture docs.
+
+`FieldPanel` is one declared panel: a `FieldGroup` paired with the post type
+whose edit screen renders it. The pairing is a value because the group carries
+no screen — the same group may serve several post types, and core registers one
+metabox per pair. A panel naming no post type is refused with
+`InvalidPanelDeclaration`.
+
+## The admin-UI contracts
+
+The storage core renders nothing. `Admin\FieldsUiProvider` — the opt-in half of
+the package — turns a host's declaration into screens, and it reaches its own
+collaborators through two contracts:
+
+### `Contracts\Panels`
+
+```php
+interface Panels extends \IteratorAggregate
+{
+    public function isEmpty(): bool;
+    /** @return list<FieldPanel> */
+    public function forPostType(string $postType): array;
+}
+```
+
+| | |
+|---|---|
+| Role | the host's declared field panels, from which every metabox, save entry, read binding and notice is derived |
+| Implementation in this package | none: the host's collection implements it |
+| Read by | `Admin\FieldsUiProvider`, and nothing else |
+
+Iteration is part of the contract because the read bindings are registered at
+`rest_api_init`, when no screen names a post type, so the enumeration must come
+from the declaration. No binding and an empty collection attach nothing; that is
+the whole opt-in.
+
+### `Contracts\ControlRegistry`
+
+```php
+interface ControlRegistry
+{
+    public function control(FieldType|string $type): FieldControl;
+    public function has(FieldType|string $type): bool;
+}
+```
+
+| | |
+|---|---|
+| Role | the field-type to control lookup the editor renders through |
+| Implementation in this package | `Admin\FieldTypeRegistry` |
+| Throws | `InvalidFieldDefinition` from `control()` when no control serves the type; `has()` never throws |
+| Emitted hook | `mahout/fields/editor_controls`, applied by the implementation at construction |
+
+A type is named by its enum case or by that case's value, because the filtered
+map is keyed by the string and a declaration carries the enum. The editor
+type-hints the contract, so a host that binds another registry renders through
+its own controls.
+
+`Contracts\FieldEditor` and `Contracts\FieldControl` are the other two admin
+surfaces a host may re-bind or extend: the panel renderer behind the metabox,
+and the one input a field type renders into.
 
 ## What a consumer may rely on
 

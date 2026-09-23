@@ -36,8 +36,10 @@ use Iniznet\Mahout\Kernel\Contracts\ServiceProvider;
  * boot, so the db package's boot always sees them.
  *
  * Nothing here renders an editor control, binds a REST route or registers a
- * WP-CLI command: those are the save-lifecycle and editor slices, and their
- * seams are the writer's guard order and the EDITOR_CONTROLS filter.
+ * WP-CLI command: the fields admin UI is its own opt-in provider,
+ * `Admin\FieldsUiProvider`, registered after this one, and the seams that
+ * keep the two apart are the writer's guard order, the editor_controls filter
+ * and the `Contracts\Panels` declaration the host binds.
  */
 final class FieldsProvider implements ServiceProvider
 {
@@ -125,7 +127,7 @@ final class FieldsProvider implements ServiceProvider
             Hooks::PERSONAL_DATA_EXPORTERS,
             static function (array $exporters) use ($exporter): array {
                 $exporters['mahout-fields'] = [
-                    'exporter_friendly_name' => \__('mahout-fields field values', 'mahout-fields'),
+                    'exporter_friendly_name' => __('mahout-fields field values', 'mahout-fields'),
                     'callback' => $exporter->export(...),
                 ];
 
@@ -139,7 +141,7 @@ final class FieldsProvider implements ServiceProvider
             Hooks::PERSONAL_DATA_ERASERS,
             static function (array $erasers) use ($eraser): array {
                 $erasers['mahout-fields'] = [
-                    'eraser_friendly_name' => \__('mahout-fields field values', 'mahout-fields'),
+                    'eraser_friendly_name' => __('mahout-fields field values', 'mahout-fields'),
                     'callback' => $eraser->erase(...),
                 ];
 

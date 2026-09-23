@@ -14,6 +14,7 @@ use Iniznet\Mahout\Fields\Admin\Control\RepeaterControl;
 use Iniznet\Mahout\Fields\Admin\Control\TextAreaControl;
 use Iniznet\Mahout\Fields\Admin\Control\TextControl;
 use Iniznet\Mahout\Fields\Admin\Control\UrlControl;
+use Iniznet\Mahout\Fields\Contracts\ControlRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldControl;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldDefinition;
 use Iniznet\Mahout\Fields\Exception\InvalidFilterResult;
@@ -25,8 +26,13 @@ use Iniznet\Mahout\Fields\Hooks;
  * host through the mahout/fields/editor_controls filter. A filter result is a
  * trust boundary: a non-array, a non-control value or a dropped built-in type
  * is refused loudly, never coerced and never silently missing.
+ *
+ * The package's implementation of `Contracts\ControlRegistry`; a type is
+ * named by its enum case or by that case's value because the filtered map is
+ * keyed by the string and a declaration carries the enum. Both forms answer to
+ * one control, looked up in one place.
  */
-final class FieldTypeRegistry
+final class FieldTypeRegistry implements ControlRegistry
 {
     /** @var array<string, FieldControl> */
     private array $controls;
@@ -68,9 +74,23 @@ final class FieldTypeRegistry
     /**
      * @throws InvalidFieldDefinition when no control serves the type
      */
-    public function control(FieldType $type): FieldControl
+    #[\Override]
+    public function control(FieldType|string $type): FieldControl
     {
-        return $this->controls[$type->value]
-            ?? throw InvalidFieldDefinition::noControl($type->value);
+        $key = $this->key($type);
+
+        return $this->controls[$key]
+            ?? throw InvalidFieldDefinition::noControl($key);
+    }
+
+    #[\Override]
+    public function has(FieldType|string $type): bool
+    {
+        return isset($this->controls[$this->key($type)]);
+    }
+
+    private function key(FieldType|string $type): string
+    {
+        return $type instanceof FieldType ? $type->value : $type;
     }
 }

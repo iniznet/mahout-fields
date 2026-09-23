@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Iniznet\Mahout\Fields\Admin;
 
 use Iniznet\Mahout\Fields\ChoiceField;
+use Iniznet\Mahout\Fields\Contracts\ControlRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldEditor as FieldEditorContract;
+use Iniznet\Mahout\Fields\Contracts\FieldReader;
+use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
+use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\ObjectKind;
 use Iniznet\Mahout\Fields\ObjectRef;
@@ -19,13 +23,17 @@ use Iniznet\Mahout\Fields\RepeaterField;
  * The nonce field markup arrives built by the caller (the metabox callback),
  * so this class performs no request-side work and no panel ever reads a
  * superglobal.
+ *
+ * The control map is reached through `Contracts\ControlRegistry`, never the
+ * concrete registry: the renderer depends on the lookup, and the host that
+ * replaces a control replaces it through the editor_controls filter.
  */
 final readonly class FieldEditor implements FieldEditorContract
 {
     public function __construct(
-        private FieldTypeRegistry $controls,
-        private \Iniznet\Mahout\Fields\Contracts\FieldRegistry $registry,
-        private \Iniznet\Mahout\Fields\Contracts\FieldReader $reader,
+        private ControlRegistry $controls,
+        private FieldRegistry $registry,
+        private FieldReader $reader,
     ) {
     }
 
@@ -41,7 +49,7 @@ final readonly class FieldEditor implements FieldEditorContract
         $group = $this->registry->group($groupId);
 
         if ($group->context !== $object->context) {
-            throw \Iniznet\Mahout\Fields\Exception\InvalidFieldContext::mismatch($groupId, $group->context->value, $object->context->value);
+            throw InvalidFieldContext::mismatch($groupId, $group->context->value, $object->context->value);
         }
 
         $controlProps = [];

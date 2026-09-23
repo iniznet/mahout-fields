@@ -49,6 +49,11 @@ msgstr ""
 msgid "Nothing selected."
 msgstr ""
 
+#. translators: 1: field group id, 2: refusal reason, 3: diagnostics reference.
+#: src/Admin/WriteFailureNoticeRenderer.php:50
+msgid "The changes to field group \"%1$s\" were not saved (%2$s). Diagnostics reference: %3$s. Nothing was written."
+msgstr ""
+
 #: src/Admin/FieldRestRoute.php:131
 #: src/Admin/FieldRestRoute.php:98
 msgid "The object_id parameter must be a positive integer."
@@ -60,5 +65,10 @@ msgstr ""
 
 #: src/Admin/FieldRestRoute.php:108
 msgid "You are not allowed to edit this object."
+msgstr ""
+
+#: src/FieldsProvider.php:130
+#: src/FieldsProvider.php:144
+msgid "mahout-fields field values"
 msgstr ""
 

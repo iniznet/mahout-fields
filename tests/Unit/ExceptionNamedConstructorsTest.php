@@ -16,6 +16,7 @@ use Iniznet\Mahout\Fields\Exception\InvalidFieldValue;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\Exception\InvalidFilterResult;
 use Iniznet\Mahout\Fields\Exception\InvalidMirrorPayload;
+use Iniznet\Mahout\Fields\Exception\InvalidPanelDeclaration;
 use Iniznet\Mahout\Fields\Exception\InvalidRepeaterPayload;
 use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Exception\MahoutException;
@@ -48,6 +49,7 @@ final class ExceptionNamedConstructorsTest extends TestCase
         ConcurrentEditLost::class,
         GroupNotFound::class,
         InvalidMirrorPayload::class,
+        InvalidPanelDeclaration::class,
     ];
 
     public function testEveryPackageExceptionImplementsTheMarker(): void
@@ -180,5 +182,13 @@ final class ExceptionNamedConstructorsTest extends TestCase
         self::assertSame('version', InvalidRepeaterPayload::unsupportedVersion(9)->reason());
         self::assertSame('malformed', InvalidRepeaterPayload::malformed('bad json')->reason());
         self::assertSame('item', InvalidRepeaterPayload::malformedItem(3)->reason());
+    }
+
+    public function testInvalidPanelDeclarationNamesTheGroupItRefuses(): void
+    {
+        $refusal = InvalidPanelDeclaration::emptyPostType('fixture_group');
+
+        self::assertSame('fixture_group', $refusal->groupId());
+        self::assertStringContainsString('fixture_group', $refusal->getMessage());
     }
 }

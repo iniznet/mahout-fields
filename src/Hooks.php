@@ -170,7 +170,7 @@ final class Hooks
      * Core's save_post action: the classic editor path the save lifecycle is
      * attached to, at priority 10 with accepted_args 3. A core hook, declared
      * here because the raw-hook-name ban applies to core hooks as much as to
-     * mahout ones; the host's AdminProvider attaches its handler through it.
+     * mahout ones; Admin\FieldsUiProvider attaches its handler through it.
      *
      * @since 1.0
      *
@@ -184,7 +184,8 @@ final class Hooks
 
     /**
      * Core's metabox registration action. A core hook, declared here for the
-     * same reason as save_post: Admin\FieldMetabox attaches through it.
+     * same reason as save_post: Admin\FieldsUiProvider attaches through it, and
+     * Admin\FieldMetabox registers the box each pair names.
      *
      * @since 1.0
      *
@@ -196,14 +197,26 @@ final class Hooks
     public const string ADD_META_BOXES = 'add_meta_boxes';
 
     /**
-     * Core's REST init action, on which the host's AdminProvider registers the
-     * field route and the per-post-type register_rest_field reads.
+     * Core's REST init action, on which the field route and the per-post-type
+     * register_rest_field reads are bound. A core hook, declared here for the
+     * same reason as save_post; Admin\FieldsUiProvider attaches through it.
      *
      * @since 1.0
      *
      * @action
      */
     public const string REST_API_INIT = 'rest_api_init';
+
+    /**
+     * Core's admin notice action, on which a queued write failure is surfaced
+     * to the user who submitted the form. A core hook, declared here for the
+     * same reason as save_post; Admin\FieldsUiProvider attaches through it.
+     *
+     * @since 1.0
+     *
+     * @action
+     */
+    public const string ADMIN_NOTICES = 'admin_notices';
 
     /**
      * Core's personal-data exporter registration filter. The package's

@@ -5,8 +5,10 @@ codec for the mahout family. A field is declared once, with an explicit
 storage target; everything downstream — the read path, the write path, the
 table schema, the orphan sources — follows from that declaration.
 
-This slice is the **declaration and storage core**. The save lifecycle, the
-editor registry and the WP-CLI surface arrive in the next two slices.
+This package is the **declaration, storage and editing surface** of the field
+layer: the schema core, the save lifecycle, the editor controls, the field
+route, and the opt-in admin UI that turns a host's declared panels into
+screens. It ships no WP-CLI surface; migrations run through mahout-db.
 
 ## Install
 
@@ -17,7 +19,8 @@ composer require iniznet/mahout-fields
 Requires PHP 8.4+, WordPress 7.1+, and `iniznet/mahout-kernel`,
 `iniznet/mahout-db` and `iniznet/mahout-content`. mahout-db must register
 before this provider, because the connection and the gateway are resolved
-under their contract ids at register() time.
+under their contract ids at register() time. The editing surface is a second,
+opt-in provider — see [Edit the fields](#edit-the-fields).
 
 ## Declare
 
@@ -49,6 +52,27 @@ $writer->set('season', ObjectRef::post($postId), 3);
 A component never reads a raw `get_post_meta()` for a registered field: the
 reader and the writer are the whole of the encapsulation rule.
 
+## Edit the fields
+
+The storage core renders nothing. `Admin\FieldsUiProvider`, registered after
+`FieldsProvider`, is the editing surface, and every metabox, save entry, REST
+read binding and notice it attaches is derived from the host's
+`Contracts\Panels` declaration:
+
+```php
+$kernel->provider(new FieldsProvider());        // storage, registry, reader, writer
+$kernel->provider(new FieldsUiProvider());      // the panels, opt-in
+
+$container->set($hostPanels, id: Contracts\Panels::class);
+$container->set($hostRequest, id: Contracts\RequestInput::class);
+```
+
+A `FieldPanel` pairs a group with the post type whose edit screen renders it,
+and one metabox follows per pair. No panels binding, or an empty one, attaches
+nothing: the opt-in and the no-panels case are one code path. The two seams a
+host re-binds are `Contracts\ControlRegistry` and `Contracts\FieldEditor`; the
+seam it extends is the `mahout/fields/editor_controls` filter.
+
 ## Storage targets
 
 | Need | `StorageTarget` |
@@ -57,7 +81,7 @@ reader and the writer are the whole of the encapsulation rule.
 | Filtered, sorted, aggregated or counted | `Table` |
 
 A `Table` field cannot be bound as a block attribute; its write path is the
-field panel and the field REST route, which is the save-lifecycle slice.
+field panel and the field REST route, both attached by `Admin\FieldsUiProvider`.
 
 ## The tables
 

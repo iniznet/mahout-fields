@@ -15,11 +15,23 @@ FieldRegistry --> RegisteredField --> FieldReader / FieldWriter
       v                                     v
 MetaStorage  |  TableStorage ----------> mahout-db Contracts (SqlConnection, TableGateway)
 RepeaterCodec
+
+Admin\FieldsUiProvider (opt-in, registered after the core provider)
+      |
+      v
+Contracts\Panels (the host's declaration) --> FieldMetabox / FieldSaveHandler
+                                               / FieldRestRoute / WriteFailureNotice
+      |
+      v
+Contracts\ControlRegistry --> Contracts\FieldEditor --> Contracts\FieldControl
 ```
 
 Arrows point one way. A storage adapter never imports a reader or a writer;
 the registry never touches storage; the codec touches nothing at all. The
-provider is the only class that resolves a collaborator from the container.
+core provider is the only class that resolves storage collaborators, and the
+UI provider is the only one that touches an admin screen — the core provider
+has no dependency on `Admin\`, and no `Admin\` class reaches back into the
+container.
 
 ## The three halves
 
@@ -39,10 +51,12 @@ provider is the only class that resolves a collaborator from the container.
 
 ## What the package does not do
 
-- It renders no editor control, binds no REST route and registers no WP-CLI
-  command. The save lifecycle's guard order and the editor registry are the
-  next two slices; their seams are the writer's guard order and the
-  `mahout/fields/editor_controls` filter.
+- The storage core renders no editor control, binds no REST route and registers
+  no WP-CLI command. The admin UI is the opt-in `Admin\FieldsUiProvider`,
+  registered after `FieldsProvider`, and its seams are the writer's guard order,
+  the `mahout/fields/editor_controls` filter, and the `Contracts\Panels`
+  declaration the host binds: with no binding, or with an empty one, the UI
+  provider attaches nothing at all.
 - It never calls a vendor purge API, never flushes a cache, never queries
   `information_schema` on a request path.
 - It never reads a registered field through raw meta: the field layer is the

@@ -91,6 +91,38 @@ A `Meta` repeater stores the versioned payload; `items()` reads it back in
 declared order. A `Table` repeater stores one row per item at an explicit
 position.
 
+## Edit the fields
+
+The storage core renders nothing. The editing surface is its own opt-in
+provider, registered after the core one, and everything it attaches is derived
+from the host's `Contracts\Panels` declaration:
+
+```php
+$kernel = Kernel::run($container, [
+    new \Iniznet\Mahout\Db\\DbProvider(),
+    new \Iniznet\Mahout\Fields\FieldsProvider(),      // storage core
+    new \Iniznet\Mahout\Fields\Admin\FieldsUiProvider(), // the panels, after it
+]);
+
+$container->set($hostPanels, id: \Iniznet\Mahout\Fields\Contracts\Panels::class);
+$container->set($hostRequest, id: \Iniznet\Mahout\Fields\Contracts\RequestInput::class);
+```
+
+One panel is one `FieldPanel`: a declared group paired with the post type whose
+edit screen renders it. With that binding present and non-empty the UI provider
+attaches the whole surface -- one metabox per (post type, group) pair, the
+classic `save_post` entry through the handler's guard order, the value route and
+its `register_rest_field` reads, and the write-failure notice -- each through a
+`Hooks` constant, the metabox behind the `edit_post` capability. Without the
+binding, or with an empty collection, it attaches nothing: the opt-in and the
+no-panels case are one code path.
+
+The package never reads a superglobal, so a host with panels supplies the
+save boundary's `Contracts\RequestInput` adapter; a missing binding fails
+loudly in `boot()`. A host that wants another panel renderer binds its own
+under `Contracts\FieldEditor` after this provider registers; a host that wants
+another control for one field type uses `mahout/fields/editor_controls`.
+
 ## The failure modes a newcomer hits
 
 | Symptom | Cause |
@@ -100,6 +132,8 @@ position.
 | `InvalidFieldValue` | the value cannot be sanitised into the declared type; it is refused, never coerced |
 | `InvalidStorageCombination` | an option-context field on `Table`, or a queried repeater on `Meta` |
 | `ServiceNotFound: SqlConnection` | mahout-db is not registered before this provider |
+| `ServiceNotFound: RequestInput` | the UI provider is registered and has panels, but the host bound no request adapter |
+| No metabox on a screen | no panel declares that post type, or the UI provider is not registered |
 | Tables missing | the migrations have not run — switch the theme, or run `wp mahout migrate` |
 
 ## Test configuration

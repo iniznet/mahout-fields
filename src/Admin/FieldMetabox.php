@@ -11,10 +11,10 @@ use Iniznet\Mahout\Fields\ObjectKind;
 
 /**
  * The metabox shell: one registration and one callback per (post type, group)
- * pair. Registration is greppable -- the host's AdminProvider calls register()
- * inside its own add_meta_boxes listener, never at file scope -- and the
- * callback delegates rendering to the package's FieldEditor, so the panel is
- * built once and in one way: props() reads through the field layer, render()
+ * pair. Registration is greppable -- Admin\FieldsUiProvider calls register()
+ * inside the add_meta_boxes listener it attaches, never at file scope -- and
+ * the callback delegates rendering to the package's FieldEditor, so the panel
+ * is built once and in one way: props() reads through the field layer, render()
  * hands the controls to their markup files.
  */
 final readonly class FieldMetabox
