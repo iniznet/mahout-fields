@@ -19,6 +19,24 @@ use Iniznet\Mahout\Fields\Tests\TestCase;
  */
 final class SchemaMigrationTest extends TestCase
 {
+    /**
+     * The install-phase migrations of the theme's suite leave real base
+     * tables in the shared test database, and the harness rewrites every
+     * wpdb DROP TABLE into DROP TEMPORARY TABLE, so no wpdb path in a test
+     * can remove them. The down() contract asks information_schema, which
+     * sees a leaked base table as existing, so the leak is cleared here
+     * through a filter-free connection before any temp table is created.
+     *
+     * @beforeClass
+     */
+    public static function clearLeakedBaseTables(): void
+    {
+        $dsn = 'mysql:host='.DB_HOST.';dbname='.DB_NAME;
+        $pdo = new \PDO($dsn, DB_USER, DB_PASSWORD);
+        $pdo->exec('DROP TABLE IF EXISTS '.(defined('DB_PREFIX') ? DB_PREFIX : 'wptests_').'mahout_field_items');
+        $pdo->exec('DROP TABLE IF EXISTS '.(defined('DB_PREFIX') ? DB_PREFIX : 'wptests_').'mahout_field_values');
+    }
+
     public function testUpCreatesTheValueTableWithTheDeclaredShape(): void
     {
         $this->dropTables();
