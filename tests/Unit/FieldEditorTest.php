@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iniznet\Mahout\Fields\Tests\Unit;
 
 use Iniznet\Mahout\Fields\Admin\FieldEditor;
+use Iniznet\Mahout\Fields\Admin\FieldEditorProps;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\ObjectContext;
@@ -26,6 +27,8 @@ use Iniznet\Mahout\Fields\TextField;
 final class FieldEditorTest extends TestCase
 {
     private const string GROUP = 'fixture_group';
+
+    private const string OPTION_GROUP = 'fixture_option_group';
 
     public function testPropsProjectsTheGroupOntoTypedControlProps(): void
     {
@@ -83,6 +86,68 @@ final class FieldEditorTest extends TestCase
         }
     }
 
+    public function testPropsForGroupProjectsAnOptionGroupWithoutAnObjectKind(): void
+    {
+        $this->registry->register($this->optionGroup());
+        $this->writer->set('fixture_option_text', ObjectRef::option(), 'stored option');
+        $editor = $this->editor();
+
+        $props = $editor->propsForGroup(self::OPTION_GROUP, '<nonce-field/>');
+
+        self::assertSame(self::OPTION_GROUP, $props->groupId);
+        self::assertNull($props->objectKind, 'the option context has no kind: an option is a singleton read by key, never a row');
+        self::assertSame(0, $props->objectId);
+        self::assertSame('<nonce-field/>', $props->nonceField, 'the nonce markup arrives built by the caller, as on every panel');
+        self::assertSame($this->reader->hash(self::OPTION_GROUP, ObjectRef::option()), $props->expectedHash);
+        self::assertCount(1, $props->controls);
+        self::assertSame('stored option', $props->controls[0]->value, 'the value is read through the field layer, never a raw option call');
+        self::assertSame('mahout_fields_panel[fixture_option_group][fixture_option_text]', $props->controls[0]->inputName);
+    }
+
+    public function testAnOptionPanelRendersWithoutTheObjectAttributes(): void
+    {
+        $this->registry->register($this->optionGroup());
+        $editor = $this->editor();
+
+        $markup = $editor->render($editor->propsForGroup(self::OPTION_GROUP, '<nonce/>'));
+
+        self::assertStringContainsString('data-mahout-group="'.self::OPTION_GROUP.'"', $markup);
+        self::assertStringNotContainsString('data-object-kind', $markup, 'the option context has no object kind to name');
+        self::assertStringNotContainsString('data-object-id', $markup);
+        self::assertStringContainsString('<nonce/>', $markup);
+        self::assertStringContainsString('name="mahout_fields_hash['.self::OPTION_GROUP.']"', $markup, 'the hash field rides the option panel like any other');
+        self::assertSame(1, substr_count($markup, 'id="mahout-field-fixture_option_text"'), 'each control renders exactly once');
+    }
+
+    public function testPropsForGroupRefusesAGroupThatIsNotOptionContext(): void
+    {
+        $this->registry->register($this->group());
+
+        try {
+            $this->editor()->propsForGroup(self::GROUP, '');
+            self::fail('a row group cannot render as an option screen');
+        } catch (InvalidFieldContext) {
+            self::addToAssertionCount(1);
+        }
+    }
+
+    public function testMismatchedPanelPropsCannotExist(): void
+    {
+        try {
+            new FieldEditorProps(self::GROUP, ObjectKind::Post, 0, [], '', '');
+            self::fail('a row panel carries an object id; there is no zero-object post');
+        } catch (InvalidFieldContext) {
+            self::addToAssertionCount(1);
+        }
+
+        try {
+            new FieldEditorProps(self::OPTION_GROUP, null, 3, [], '', '');
+            self::fail('the option context has no object; the props carry no id');
+        } catch (InvalidFieldContext) {
+            self::addToAssertionCount(1);
+        }
+    }
+
     public function testAnErrorMapReachesItsControl(): void
     {
         $postId = $this->postId();
@@ -112,6 +177,13 @@ final class FieldEditorTest extends TestCase
         return new FieldGroup(self::GROUP, ObjectContext::Post, [
             new TextField('fixture_text', StorageTarget::Table),
             new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Table)),
+        ]);
+    }
+
+    private function optionGroup(): FieldGroup
+    {
+        return new FieldGroup(self::OPTION_GROUP, ObjectContext::Option, [
+            new TextField('fixture_option_text', StorageTarget::Meta),
         ]);
     }
 }

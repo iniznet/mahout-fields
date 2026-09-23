@@ -49,8 +49,12 @@ msgstr ""
 msgid "Nothing selected."
 msgstr ""
 
+#: src/Admin/Control/markup/option-page.php:8
+msgid "Save fields"
+msgstr ""
+
 #. translators: 1: field group id, 2: refusal reason, 3: diagnostics reference.
-#: src/Admin/WriteFailureNoticeRenderer.php:50
+#: src/Admin/WriteFailureNoticeRenderer.php:67
 msgid "The changes to field group \"%1$s\" were not saved (%2$s). Diagnostics reference: %3$s. Nothing was written."
 msgstr ""
 

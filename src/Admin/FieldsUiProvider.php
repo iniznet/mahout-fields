@@ -10,6 +10,7 @@ use Iniznet\Mahout\Fields\Contracts\FieldEditor as FieldEditorContract;
 use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry as FieldRegistryContract;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
+use Iniznet\Mahout\Fields\Contracts\OptionScreens;
 use Iniznet\Mahout\Fields\Contracts\Panels;
 use Iniznet\Mahout\Fields\Contracts\RequestInput as RequestInputContract;
 use Iniznet\Mahout\Fields\Field;
@@ -47,13 +48,16 @@ use Iniznet\Mahout\Kernel\Diagnostics;
  * `mahout/fields/editor_controls`, which the registry applies at construction,
  * because the control map is one filtered value and not a binding.
  *
- * The one host binding this provider reads is `Contracts\Panels`: every
- * metabox, save entry, read binding and notice is derived from that
- * declaration and from nothing else. A host with panels must also bind
- * `Contracts\RequestInput`, the adapter over its own request boundary -- the
- * package never reads a superglobal, so the foreign-form guard is decided by
- * the host's reader. Both are resolved in `boot()`, where a missing binding is
- * a composition error and fails loudly through the container.
+ * The host bindings this provider reads are `Contracts\Panels` and
+ * `Contracts\OptionScreens`: every metabox, save entry, read binding and
+ * notice is derived from the first, and every settings page, save entry and
+ * notice from the second, each from its declaration and from nothing else.
+ * A host with panels must also bind `Contracts\RequestInput`, the adapter
+ * over its own request boundary -- the package never reads a superglobal, so
+ * the foreign-form guard is decided by the host's reader, and the option
+ * screens' save entry reads the submitted values through it too. All are
+ * resolved in `boot()`, where a missing binding is a composition error and
+ * fails loudly through the container.
  */
 final class FieldsUiProvider implements ServiceProvider
 {
@@ -72,22 +76,20 @@ final class FieldsUiProvider implements ServiceProvider
 
     public function boot(Container $container): void
     {
-        if (!$container->has(Panels::class)) {
-            return;
+        if ($container->has(Panels::class)) {
+            $panels = $container->get(Panels::class);
+
+            if (!$panels->isEmpty()) {
+                $notices = new WriteFailureNotice();
+
+                $this->attachMetaboxes($container, $panels);
+                $this->attachSave($container, $notices);
+                $this->attachRest($container, $panels);
+                $this->attachNotice($notices);
+            }
         }
 
-        $panels = $container->get(Panels::class);
-
-        if ($panels->isEmpty()) {
-            return;
-        }
-
-        $notices = new WriteFailureNotice();
-
-        $this->attachMetaboxes($container, $panels);
-        $this->attachSave($container, $notices);
-        $this->attachRest($container, $panels);
-        $this->attachNotice($notices);
+        $this->attachOptionScreens($container);
     }
 
     /**
@@ -186,6 +188,36 @@ final class FieldsUiProvider implements ServiceProvider
             priority: 20,
             accepted_args: 0,
         );
+    }
+
+    /**
+     * The option screens, the same opt-in the panels are: resolve the host's
+     * `Contracts\OptionScreens`, and attach nothing when it is absent or
+     * empty. The manager is the only class in the package that registers a
+     * settings page, and this is the one seam it is reached through --
+     * greppable here, like every attachment in the composition.
+     */
+    private function attachOptionScreens(Container $container): void
+    {
+        if (!$container->has(OptionScreens::class)) {
+            return;
+        }
+
+        $screens = $container->get(OptionScreens::class);
+
+        if ($screens->isEmpty()) {
+            return;
+        }
+
+        $manager = new OptionScreenManager(
+            screens: $screens,
+            editor: $container->get(FieldEditorContract::class),
+            writer: $container->get(FieldWriterContract::class),
+            request: $container->get(RequestInputContract::class),
+            diagnostics: $container->get(Diagnostics::class),
+        );
+
+        \add_action(Hooks::ADMIN_MENU, $manager->register(...), priority: 10, accepted_args: 0);
     }
 
     /** The one read binding for every field the panel's group declares. */

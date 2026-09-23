@@ -191,4 +191,31 @@ final class ExceptionNamedConstructorsTest extends TestCase
         self::assertSame('fixture_group', $refusal->groupId());
         self::assertStringContainsString('fixture_group', $refusal->getMessage());
     }
+
+    public function testInvalidPanelDeclarationNamesTheOptionScreenRefusals(): void
+    {
+        self::assertSame('fixture_group', InvalidPanelDeclaration::emptyPageSlug('fixture_group')->groupId());
+        self::assertSame('fixture_group', InvalidPanelDeclaration::emptyPageTitle('fixture_group')->groupId());
+        self::assertSame('fixture_group', InvalidPanelDeclaration::emptyMenuTitle('fixture_group')->groupId());
+        self::assertSame('fixture_group', InvalidPanelDeclaration::emptyCapability('fixture_group')->groupId());
+        self::assertSame('fixture_group', InvalidPanelDeclaration::emptyMenuParent('fixture_group')->groupId());
+
+        $context = InvalidPanelDeclaration::notOptionContext('fixture_group', 'post');
+
+        self::assertSame('fixture_group', $context->groupId());
+        self::assertStringContainsString('post', $context->getMessage());
+    }
+
+    public function testInvalidFieldContextRefusesMismatchedPanelProps(): void
+    {
+        $option = InvalidFieldContext::panelObject('fixture_group', 'option', 3);
+
+        self::assertSame('option', $option->declared());
+        self::assertSame('3', $option->given());
+
+        $row = InvalidFieldContext::panelObject('fixture_group', 'post', 0);
+
+        self::assertSame('post', $row->declared());
+        self::assertSame('0', $row->given());
+    }
 }

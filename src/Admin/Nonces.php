@@ -26,6 +26,9 @@ final class Nonces
     /** The panel save action's base. The per-object form appends the object id. */
     private const string FIELD_PANEL_SAVE = 'mahout_fields_field_panel_save';
 
+    /** The option screen save action's base. The per-screen form appends the page slug. */
+    private const string OPTION_SCREEN_SAVE = 'mahout_fields_option_screen_save';
+
     /** The form field every panel carries, and the foreign-form guard's key. */
     private const string NONCE_FIELD = 'mahout_fields_panel_nonce';
 
@@ -39,6 +42,16 @@ final class Nonces
     public static function action(int $objectId): string
     {
         return self::FIELD_PANEL_SAVE.'_'.$objectId;
+    }
+
+    /**
+     * The one dynamic nonce action an option screen's form carries, built here
+     * and nowhere else: the screen's own admin-referer action, naming the page
+     * slug, so one screen's form never verifies against another screen's save.
+     */
+    public static function screenAction(string $slug): string
+    {
+        return self::OPTION_SCREEN_SAVE.'_'.$slug;
     }
 
     /** The form field every panel carries. */

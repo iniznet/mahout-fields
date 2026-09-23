@@ -6,16 +6,15 @@ namespace Iniznet\Mahout\Fields\Admin;
 
 /**
  * The write-failure notice's presentation: the refusal `WriteFailureNotice`
- * queued for the editing user and this post, surfaced on the next admin screen
- * load.
+ * queued for the editing user and this post, or for one option screen,
+ * surfaced on the next admin screen load.
  *
- * The save pipeline never `wp_die()`, so a refused classic-path save is one
- * diagnostics record plus this notice and nothing else. The notice carries the
- * group, the reason and the reference; nothing is retried and nothing is
- * substituted.
+ * The save pipeline never `wp_die()`, so a refused save is one diagnostics
+ * record plus this notice and nothing else. The notice carries the group, the
+ * reason and the reference; nothing is retried and nothing is substituted.
  *
- * The queue lives on `WriteFailureNotice`, whose only operations are queue and
- * take; this class reads a taken refusal back and renders it, so the store
+ * The queue lives on `WriteFailureNotice`, whose only operations are queue
+ * and take; this class reads a taken refusal back and renders it, so the store
  * carries no markup and the markup knows no transient key.
  */
 final readonly class WriteFailureNoticeRenderer
@@ -40,10 +39,28 @@ final readonly class WriteFailureNoticeRenderer
 
         $refusal = $this->notices->take(\get_current_user_id(), (int) $post->ID);
 
-        if (!$refusal instanceof QueuedRefusal) {
-            return;
+        if ($refusal instanceof QueuedRefusal) {
+            $this->renderRefusal($refusal);
         }
+    }
 
+    /**
+     * The admin_notices entry for one option screen. The screen names its own
+     * key, so the notice takes exactly the refusal that screen's save queued;
+     * off the screen there is nothing to take, and a taken refusal is taken
+     * once -- a notice never repeats itself on the next load.
+     */
+    public function renderForScreen(string $slug): void
+    {
+        $refusal = $this->notices->takeForScreen($slug);
+
+        if ($refusal instanceof QueuedRefusal) {
+            $this->renderRefusal($refusal);
+        }
+    }
+
+    private function renderRefusal(QueuedRefusal $refusal): void
+    {
         \wp_admin_notice(
             sprintf(
                 /* translators: 1: field group id, 2: refusal reason, 3: diagnostics reference. */

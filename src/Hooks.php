@@ -82,6 +82,12 @@ final class Hooks
     private const string VALUE_PER_FIELD = 'mahout/fields/value/id=';
 
     /**
+     * The per-page load action's prefix. The one permitted dynamic hook form's
+     * prefix, constructed at exactly one site, through screenLoad().
+     */
+    private const string SCREEN_LOAD_PREFIX = 'load-';
+
+    /**
      * Fires before a value is written. The value argument is the caller's raw
      * input, unsanitised; the save lifecycle's guards sit outside this hook.
      *
@@ -208,6 +214,20 @@ final class Hooks
     public const string REST_API_INIT = 'rest_api_init';
 
     /**
+     * Core's admin menu action, on which one submenu page per declared option
+     * screen is registered. A core hook, declared here for the same reason as
+     * save_post; Admin\FieldsUiProvider attaches Admin\OptionScreenManager
+     * through it, and the manager registers a page only for a screen the
+     * current user's capability reaches -- a screen the user cannot reach is
+     * not registered at all, never rendered without values.
+     *
+     * @since 1.0
+     *
+     * @action
+     */
+    public const string ADMIN_MENU = 'admin_menu';
+
+    /**
      * Core's admin notice action, on which a queued write failure is surfaced
      * to the user who submitted the form. A core hook, declared here for the
      * same reason as save_post; Admin\FieldsUiProvider attaches through it.
@@ -240,6 +260,21 @@ final class Hooks
      * @param array<string, array{eraser_friendly_name: string, callback: callable}> $erasers
      */
     public const string PERSONAL_DATA_ERASERS = 'wp_privacy_personal_data_erasers';
+
+    /**
+     * The one dynamic hook form the option screens need, and the one site it
+     * is constructed: core's per-page load action, built from the hook suffix
+     * add_submenu_page() returned. Admin\OptionScreenManager attaches the
+     * page's save entry through it.
+     *
+     * @action
+     *
+     * @param string $pageHook the hook suffix the screen was registered under
+     */
+    public static function screenLoad(string $pageHook): string
+    {
+        return self::SCREEN_LOAD_PREFIX.$pageHook;
+    }
 
     /**
      * The one permitted dynamic hook form, and the one site it is constructed.
