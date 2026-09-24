@@ -228,6 +228,13 @@ final class Hooks
     public const string ADMIN_MENU = 'admin_menu';
 
     /**
+     * Core's enqueue point for the admin screens. The package's default
+     * stylesheet is enqueued here, on exactly the screens whose request renders
+     * field UI -- a panel's post type edit screen, a declared option screen.
+     */
+    public const string ADMIN_ENQUEUE_SCRIPTS = 'admin_enqueue_scripts';
+
+    /**
      * Core's admin notice action, on which a queued write failure is surfaced
      * to the user who submitted the form. A core hook, declared here for the
      * same reason as save_post; Admin\FieldsUiProvider attaches through it.

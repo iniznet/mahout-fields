@@ -8,6 +8,7 @@ use Iniznet\Mahout\Db\Contracts\SqlConnection;
 use Iniznet\Mahout\Db\Contracts\TableGateway;
 use Iniznet\Mahout\Db\Internal\WpdbTableGateway;
 use Iniznet\Mahout\Fields\Admin\FieldEditor as FieldEditorImplementation;
+use Iniznet\Mahout\Fields\Admin\FieldStyles;
 use Iniznet\Mahout\Fields\Admin\FieldsUiProvider;
 use Iniznet\Mahout\Fields\Admin\FieldTypeRegistry;
 use Iniznet\Mahout\Fields\Admin\Nonces;
@@ -15,6 +16,7 @@ use Iniznet\Mahout\Fields\Contracts\ControlRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldEditor as FieldEditorContract;
 use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry as FieldRegistryContract;
+use Iniznet\Mahout\Fields\Contracts\FieldUiPolicy;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
 use Iniznet\Mahout\Fields\Contracts\Panels;
 use Iniznet\Mahout\Fields\Contracts\RequestInput as RequestInputContract;
@@ -87,9 +89,9 @@ final class FieldsUiProviderTest extends TestCase
         (new FieldsUiProvider())->boot($container);
 
         self::assertSame(
-            [Hooks::ADD_META_BOXES, Hooks::SAVE_POST, Hooks::REST_API_INIT, Hooks::ADMIN_NOTICES],
+            [Hooks::ADD_META_BOXES, Hooks::SAVE_POST, Hooks::REST_API_INIT, Hooks::ADMIN_NOTICES, Hooks::ADMIN_ENQUEUE_SCRIPTS],
             $this->attachedUiHooks(),
-            'one metabox entry, one save entry, one REST entry, one notice entry, and none beside them',
+            'one metabox entry, one save entry, one REST entry, one notice entry, one stylesheet entry, and none beside them',
         );
     }
 
@@ -298,10 +300,76 @@ final class FieldsUiProviderTest extends TestCase
      *
      * @return list<string>
      */
+    public function testTheDefaultStylesheetIsEnqueuedOnADeclaredPanelsEditScreen(): void
+    {
+        $container = $this->container(new DeclaredPanels([new FieldPanel('post', $this->group())]));
+        $container->set(new FieldStyles('http://example.org/vendor/mahout-fields/resources/fields.css', $container->get(Panels::class)), id: FieldStyles::class);
+
+        $this->clearUiHooks();
+        (new FieldsUiProvider())->boot($container);
+
+        \set_current_screen('post.php');
+        \get_current_screen()->post_type = 'post';
+
+        \do_action(Hooks::ADMIN_ENQUEUE_SCRIPTS, 'post.php');
+
+        self::assertTrue(\wp_style_is(FieldStyles::HANDLE, 'registered'), 'the handle exists only where field UI renders');
+        self::assertTrue(\wp_style_is(FieldStyles::HANDLE, 'enqueued'));
+
+        \wp_dequeue_style(FieldStyles::HANDLE);
+        \wp_deregister_style(FieldStyles::HANDLE);
+        \set_current_screen('front');
+    }
+
+    public function testTheDefaultStylesheetIsNotEnqueuedOnAnUnrelatedScreen(): void
+    {
+        $container = $this->container(new DeclaredPanels([new FieldPanel('post', $this->group())]));
+
+        $this->clearUiHooks();
+        (new FieldsUiProvider())->boot($container);
+
+        \do_action(Hooks::ADMIN_ENQUEUE_SCRIPTS, 'edit-tags.php');
+
+        self::assertFalse(\wp_style_is(FieldStyles::HANDLE, 'enqueued'));
+    }
+
+    public function testAPolicyThatTakesStylingOverRemovesTheStylesheetAndTheHook(): void
+    {
+        $policy = new class implements FieldUiPolicy {
+            #[\Override]
+            public function styled(): bool
+            {
+                return false;
+            }
+
+            #[\Override]
+            public function fields(): array
+            {
+                return [];
+            }
+        };
+
+        $container = $this->container(new DeclaredPanels([new FieldPanel('post', $this->group())]));
+        $container->set($policy, id: FieldUiPolicy::class);
+
+        $this->clearUiHooks();
+        (new FieldsUiProvider())->boot($container);
+
+        self::assertNotContains(Hooks::ADMIN_ENQUEUE_SCRIPTS, $this->attachedUiHooks(), 'a host that owns the pixels owns the enqueue too');
+
+        \set_current_screen('post.php');
+        \get_current_screen()->post_type = 'post';
+        \do_action(Hooks::ADMIN_ENQUEUE_SCRIPTS, 'post.php');
+
+        self::assertFalse(\wp_style_is(FieldStyles::HANDLE, 'registered'));
+
+        \set_current_screen('front');
+    }
+
     private function attachedUiHooks(): array
     {
         return array_values(array_filter(
-            [Hooks::ADD_META_BOXES, Hooks::SAVE_POST, Hooks::REST_API_INIT, Hooks::ADMIN_NOTICES],
+            [Hooks::ADD_META_BOXES, Hooks::SAVE_POST, Hooks::REST_API_INIT, Hooks::ADMIN_NOTICES, Hooks::ADMIN_ENQUEUE_SCRIPTS],
             static fn (string $hook): bool => \has_action($hook) >= 1,
         ));
     }
@@ -313,7 +381,7 @@ final class FieldsUiProviderTest extends TestCase
      */
     private function clearUiHooks(): void
     {
-        foreach ([Hooks::ADD_META_BOXES, Hooks::SAVE_POST, Hooks::REST_API_INIT, Hooks::ADMIN_NOTICES] as $hook) {
+        foreach ([Hooks::ADD_META_BOXES, Hooks::SAVE_POST, Hooks::REST_API_INIT, Hooks::ADMIN_NOTICES, Hooks::ADMIN_ENQUEUE_SCRIPTS] as $hook) {
             \remove_all_actions($hook);
         }
     }

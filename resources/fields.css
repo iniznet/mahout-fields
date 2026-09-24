@@ -1,0 +1,89 @@
+/*
+ * The package's default field styling. Scoped to the package's own classes
+ * and built on core's admin custom properties, so the controls read as
+ * native wp-admin UI in both colour schemes. A host that binds
+ * Contracts\FieldUiPolicy with styled() === false never loads this file;
+ * a host that marks a field unstyled renders it under the one class no rule
+ * here targets: .mahout-fields-unstyled.
+ */
+
+.mahout-fields-panel {
+	margin: 0;
+}
+
+.mahout-fields-control {
+	margin: 0 0 16px;
+}
+
+.mahout-fields-control:last-child {
+	margin-bottom: 0;
+}
+
+.mahout-fields-control > label {
+	display: block;
+	margin: 0 0 4px;
+	font-weight: 600;
+}
+
+.mahout-fields-control input[type="text"],
+.mahout-fields-control input[type="email"],
+.mahout-fields-control input[type="url"],
+.mahout-fields-control input[type="date"],
+.mahout-fields-control input[type="number"],
+.mahout-fields-control input[type="url"],
+.mahout-fields-control select,
+.mahout-fields-control textarea {
+	width: 100%;
+	max-width: 32em;
+	margin: 0;
+}
+
+.mahout-fields-control input[type="checkbox"],
+.mahout-fields-control input[type="radio"] {
+	margin: 0 6px 0 0;
+	vertical-align: middle;
+}
+
+.mahout-fields-control input[aria-invalid="true"] {
+	border-color: #b32d2e;
+}
+
+.mahout-fields-control input:disabled {
+	color: #a7aaad;
+}
+
+.mahout-fields-help {
+	margin: 4px 0 0;
+	color: #646970;
+	font-style: italic;
+}
+
+.mahout-fields-error {
+	margin: 4px 0 0;
+	color: #b32d2e;
+}
+
+.mahout-fields-items {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.mahout-fields-items li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.mahout-fields-items li > input,
+.mahout-fields-items li > select {
+	flex: 1;
+}
+
+.mahout-fields-items li > .button-link {
+	color: #b32d2e;
+	text-decoration: none;
+}

@@ -123,6 +123,18 @@ loudly in `boot()`. A host that wants another panel renderer binds its own
 under `Contracts\FieldEditor` after this provider registers; a host that wants
 another control for one field type uses `mahout/fields/editor_controls`.
 
+The controls arrive styled. `Admin\FieldStyles` enqueues the package's own
+`resources/fields.css` — scoped to its `mahout-fields-*` class names — on
+exactly the screens that render field UI: a declared panel's post type edit
+screen, a declared option screen's page. A host takes styling over through
+`Contracts\FieldUiPolicy`: `styled() === false` removes the handle and every
+default class, and the policy's per-field `FieldUi` value replaces a field's
+control (a name that is not a control is refused at the render site), strips
+one field's default styling while keeping the built-in control, or both. A
+package install no core API can name a URL for refuses loudly at the enqueue
+site; a host in that position binds its own `Admin\FieldStyles` with an
+explicit URL.
+
 ## The failure modes a newcomer hits
 
 | Symptom | Cause |

@@ -6,9 +6,12 @@ namespace Iniznet\Mahout\Fields\Admin;
 
 use Iniznet\Mahout\Fields\ChoiceField;
 use Iniznet\Mahout\Fields\Contracts\ControlRegistry;
+use Iniznet\Mahout\Fields\Contracts\FieldControl as FieldControlContract;
 use Iniznet\Mahout\Fields\Contracts\FieldEditor as FieldEditorContract;
 use Iniznet\Mahout\Fields\Contracts\FieldReader;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
+use Iniznet\Mahout\Fields\Contracts\FieldUiPolicy;
+use Iniznet\Mahout\Fields\Exception\InvalidControlOverride;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\FieldGroup;
@@ -39,6 +42,7 @@ final readonly class FieldEditor implements FieldEditorContract
         private ControlRegistry $controls,
         private FieldRegistry $registry,
         private FieldReader $reader,
+        private ?FieldUiPolicy $ui = null,
     ) {
     }
 
@@ -77,8 +81,12 @@ final readonly class FieldEditor implements FieldEditorContract
     {
         $rendered = [];
 
+        $resolved = [];
+
         foreach ($props->controls as $control) {
-            $rendered[] = $this->controls->control($control->type)->render($control);
+            $resolved[$control->fieldId] ??= $this->controlFor($control);
+
+            $rendered[] = $resolved[$control->fieldId]->render($control);
         }
 
         \ob_start();
@@ -86,6 +94,27 @@ final readonly class FieldEditor implements FieldEditorContract
         require __DIR__.'/Control/markup/panel.php';
 
         return (string) \ob_get_clean();
+    }
+
+    /**
+     * The control one field renders: the policy's replacement when it names
+     * one, the type's built-in otherwise. A named class that is not a control
+     * is refused at the render site -- the policy is a trust boundary, and a
+     * silent skip would render a field the host believes it replaced.
+     */
+    private function controlFor(FieldControlProps $control): FieldControlContract
+    {
+        $override = $this->ui?->fields()[$control->fieldId]->control ?? null;
+
+        if (null === $override) {
+            return $this->controls->control($control->type);
+        }
+
+        if (!\is_a($override, FieldControlContract::class, true)) {
+            throw InvalidControlOverride::notAControl($control->fieldId, $override);
+        }
+
+        return new $override();
     }
 
     /**
@@ -101,6 +130,8 @@ final readonly class FieldEditor implements FieldEditorContract
         $controlProps = [];
 
         foreach ($group->fields as $field) {
+            $ui = $this->ui?->fields()[$field->id] ?? null;
+
             if ($field instanceof RepeaterField) {
                 $items = $this->reader->items($field->id, $object);
 
@@ -113,6 +144,7 @@ final readonly class FieldEditor implements FieldEditorContract
                 $controlProps[] = new FieldControlProps(
                     fieldId: $field->id,
                     type: $field->type(),
+                    styled: null === $ui || $ui->styled,
                     label: $field->label ?? $field->id,
                     inputName: Nonces::valueField().'['.$group->id.']['.$field->id.'][]',
                     inputId: 'mahout-field-'.$field->id,
@@ -127,6 +159,7 @@ final readonly class FieldEditor implements FieldEditorContract
             $controlProps[] = new FieldControlProps(
                 fieldId: $field->id,
                 type: $field->type(),
+                styled: null === $ui || $ui->styled,
                 label: $field->label ?? $field->id,
                 inputName: Nonces::valueField().'['.$group->id.']['.$field->id.']',
                 inputId: 'mahout-field-'.$field->id,

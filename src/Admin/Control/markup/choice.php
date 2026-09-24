@@ -1,7 +1,7 @@
 <?php
 /** @var Iniznet\Mahout\Fields\Admin\FieldControlProps $control */
 ?>
-<div class="mahout-fields-control mahout-fields-control--choice" data-field="<?php echo esc_attr($control->fieldId); ?>">
+<div class="<?php echo esc_attr($control->classes('mahout-fields-control', 'mahout-fields-control--choice')); ?>" data-field="<?php echo esc_attr($control->fieldId); ?>">
 	<label for="<?php echo esc_attr($control->inputId); ?>"><?php echo esc_html($control->label); ?></label>
 	<select
 		id="<?php echo esc_attr($control->inputId); ?>"
@@ -17,6 +17,6 @@
 	<?php } ?>
 	</select>
 	<?php if (null !== $control->error) { ?>
-		<p class="mahout-fields-error" id="<?php echo esc_attr($control->inputId); ?>-error"><?php echo esc_html($control->error); ?></p>
+		<p class="<?php echo esc_attr($control->classes('mahout-fields-error')); ?>" id="<?php echo esc_attr($control->inputId); ?>-error"><?php echo esc_html($control->error); ?></p>
 	<?php } ?>
 </div>

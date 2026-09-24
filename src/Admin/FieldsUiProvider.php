@@ -9,6 +9,7 @@ use Iniznet\Mahout\Fields\Contracts\ControlRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldEditor as FieldEditorContract;
 use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry as FieldRegistryContract;
+use Iniznet\Mahout\Fields\Contracts\FieldUiPolicy;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
 use Iniznet\Mahout\Fields\Contracts\OptionScreens;
 use Iniznet\Mahout\Fields\Contracts\Panels;
@@ -70,6 +71,9 @@ final class FieldsUiProvider implements ServiceProvider
             $controls,
             $container->get(FieldRegistryContract::class),
             $container->get(FieldReaderContract::class),
+            $container->has(FieldUiPolicy::class)
+                ? $container->get(FieldUiPolicy::class)
+                : null,
         );
         $container->set(service: $editor, id: FieldEditorContract::class);
     }
@@ -90,6 +94,7 @@ final class FieldsUiProvider implements ServiceProvider
         }
 
         $this->attachOptionScreens($container);
+        $this->attachStyles($container);
     }
 
     /**
@@ -197,6 +202,45 @@ final class FieldsUiProvider implements ServiceProvider
      * settings page, and this is the one seam it is reached through --
      * greppable here, like every attachment in the composition.
      */
+    /**
+     * The default stylesheet's enqueue point. It exists when field UI exists
+     * -- a declared panel or a declared option screen -- and the host has not
+     * taken styling over through the UI policy; the decision of which screen
+     * qualifies is FieldStyles', not this attachment's.
+     */
+    private function attachStyles(Container $container): void
+    {
+        $policy = $container->has(FieldUiPolicy::class)
+            ? $container->get(FieldUiPolicy::class)
+            : null;
+
+        if (null !== $policy && !$policy->styled()) {
+            return;
+        }
+
+        $panels = $container->has(Panels::class) && !$container->get(Panels::class)->isEmpty()
+            ? $container->get(Panels::class)
+            : null;
+        $screens = $container->has(OptionScreens::class) && !$container->get(OptionScreens::class)->isEmpty()
+            ? $container->get(OptionScreens::class)
+            : null;
+
+        if (null === $panels && null === $screens) {
+            return;
+        }
+
+        $styles = $container->has(FieldStyles::class)
+            ? $container->get(FieldStyles::class)
+            : new FieldStyles(panels: $panels, screens: $screens);
+
+        \add_action(
+            Hooks::ADMIN_ENQUEUE_SCRIPTS,
+            $styles->enqueue(...),
+            priority: 10,
+            accepted_args: 1,
+        );
+    }
+
     private function attachOptionScreens(Container $container): void
     {
         if (!$container->has(OptionScreens::class)) {

@@ -9,6 +9,7 @@ use Iniznet\Mahout\Fields\Exception\DuplicateFieldId;
 use Iniznet\Mahout\Fields\Exception\FieldNotFound;
 use Iniznet\Mahout\Fields\Exception\GroupAlreadyRegistered;
 use Iniznet\Mahout\Fields\Exception\GroupNotFound;
+use Iniznet\Mahout\Fields\Exception\InvalidControlOverride;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldDefinition;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldId;
@@ -21,6 +22,7 @@ use Iniznet\Mahout\Fields\Exception\InvalidRepeaterPayload;
 use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Exception\MahoutException;
 use Iniznet\Mahout\Fields\Exception\RepeaterTooLarge;
+use Iniznet\Mahout\Fields\Exception\UnresolvableFieldStyles;
 use Iniznet\Mahout\Fields\RepeaterCodec;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 
@@ -50,6 +52,8 @@ final class ExceptionNamedConstructorsTest extends TestCase
         GroupNotFound::class,
         InvalidMirrorPayload::class,
         InvalidPanelDeclaration::class,
+        InvalidControlOverride::class,
+        UnresolvableFieldStyles::class,
     ];
 
     public function testEveryPackageExceptionImplementsTheMarker(): void
@@ -217,5 +221,20 @@ final class ExceptionNamedConstructorsTest extends TestCase
 
         self::assertSame('post', $row->declared());
         self::assertSame('0', $row->given());
+    }
+
+    public function testInvalidControlOverrideNamesTheFieldAndTheClass(): void
+    {
+        $refusal = InvalidControlOverride::notAControl('fixture_text', \stdClass::class);
+
+        self::assertStringContainsString('fixture_text', $refusal->getMessage());
+        self::assertStringContainsString('stdClass', $refusal->getMessage());
+    }
+
+    public function testUnresolvableFieldStylesCarriesThePath(): void
+    {
+        $refusal = UnresolvableFieldStyles::outsideContent('/somewhere/fields.css');
+
+        self::assertStringContainsString('/somewhere/fields.css', $refusal->getMessage());
     }
 }
