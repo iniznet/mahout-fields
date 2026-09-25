@@ -155,21 +155,25 @@ final readonly class OptionScreenManager
     {
         $active = $this->activeTab($screen);
 
-        $nonce = '';
         $panels = [];
 
         foreach ($screen->tabs as $tab) {
+            // Each fields panel is its own form: a tab that carries no fields
+            // renders no form at all, and a submission posts exactly the
+            // panel it came from. The nonce is per screen action, so every
+            // fields panel verifies against the same save.
+            $panelNonce = '';
             $sections = [];
 
             foreach ($tab->sections as $section) {
                 $markup = '';
 
                 if (null !== $section->group) {
-                    if ('' === $nonce) {
-                        $nonce = \wp_nonce_field(Nonces::screenAction($screen->pageSlug), Nonces::nonceField(), true, false);
+                    if ('' === $panelNonce) {
+                        $panelNonce = \wp_nonce_field(Nonces::screenAction($screen->pageSlug), Nonces::nonceField(), true, false);
                     }
 
-                    $markup = $this->editor->render($this->editor->propsForGroup($section->group->id, $nonce));
+                    $markup = $this->editor->render($this->editor->propsForGroup($section->group->id, $panelNonce));
                 } else {
                     $markup = self::contentMarkup($section->markupPath ?? '');
                 }
@@ -180,6 +184,7 @@ final readonly class OptionScreenManager
             $panels[] = [
                 'label' => $tab->label,
                 'hidden' => $tab->label !== $active->label,
+                'hasFields' => '' !== $panelNonce,
                 'sections' => $sections,
             ];
         }
@@ -190,7 +195,6 @@ final readonly class OptionScreenManager
             'active' => $active,
             'panels' => $panels,
             'action' => \admin_url($screen->menuParent.'?page='.rawurlencode($screen->pageSlug)),
-            'hasFields' => '' !== $nonce,
             'tabParam' => self::TAB_PARAM,
         ];
         require __DIR__.'/Control/markup/option-page.php';

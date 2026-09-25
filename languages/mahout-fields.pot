@@ -49,7 +49,7 @@ msgstr ""
 msgid "Nothing selected."
 msgstr ""
 
-#: src/Admin/Control/markup/option-page.php:45
+#: src/Admin/Control/markup/option-page.php:43
 msgid "Save fields"
 msgstr ""
 

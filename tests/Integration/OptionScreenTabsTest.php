@@ -192,6 +192,8 @@ final class OptionScreenTabsTest extends TestCase
         \do_action(\get_plugin_page_hookname(self::SLUG, 'options-general.php'));
         $markup = (string) \ob_get_clean();
 
+        self::assertSame(1, substr_count($markup, '<form'), 'each fields panel is its own form: a tab that carries no fields renders none');
+        self::assertSame(1, substr_count($markup, 'class="submit"'), 'one save button, on the one fields panel');
         self::assertStringContainsString('<h2>Fixture group</h2>', $markup, 'a titled section renders its heading');
         self::assertStringContainsString('<p class="description">Fixture options intro.</p>', $markup, 'the page\'s own intro renders');
         self::assertStringContainsString('type="hidden" name="'.OptionScreenManager::TAB_PARAM.'" value="'.self::FIELDS_TAB.'"', $markup, 'the form carries the active tab back');

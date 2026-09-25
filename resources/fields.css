@@ -113,15 +113,19 @@
 .mahout-fields-page__grid {
 	display: grid;
 	grid-template-columns: 180px minmax(0, 1fr);
-	gap: 16px;
+	gap: 20px;
+}
+
+.mahout-fields-page__content {
+	min-width: 0;
+	padding: 4px 0;
 }
 
 .mahout-fields-page__nav {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	margin: 0 -16px 0 0;
-	padding: 12px 12px 12px 0;
+	padding: 4px 12px 4px 0;
 	border-right: 1px solid var(--wp--preset--color--interface-border, #dcdcde);
 }
 

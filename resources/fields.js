@@ -18,7 +18,7 @@
 
 	var links = Array.prototype.slice.call(page.querySelectorAll('[data-mahout-tab]'));
 	var panels = Array.prototype.slice.call(page.querySelectorAll('[data-mahout-panel]'));
-	var field = page.querySelector('[data-mahout-tab-field]');
+	var fields = Array.prototype.slice.call(page.querySelectorAll('[data-mahout-tab-field]'));
 
 	function select(label, url) {
 		links.forEach(function (link) {
@@ -41,9 +41,9 @@
 			}
 		});
 
-		if (field) {
-			field.value = label;
-		}
+		fields.forEach(function (tabField) {
+			tabField.value = label;
+		});
 
 		if (url && window.history && window.history.replaceState) {
 			window.history.replaceState(null, '', url);

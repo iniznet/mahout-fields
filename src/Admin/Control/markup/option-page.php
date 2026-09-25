@@ -1,5 +1,5 @@
 <?php
-/** @var array{screen: Iniznet\Mahout\Fields\OptionScreen, active: Iniznet\Mahout\Fields\OptionTab, panels: list<array{label: string, hidden: bool, sections: list<array{title: string, markup: string}>}>, action: string, hasFields: bool, tabParam: string} $view */
+/** @var array{screen: Iniznet\Mahout\Fields\OptionScreen, active: Iniznet\Mahout\Fields\OptionTab, panels: list<array{label: string, hidden: bool, hasFields: bool, sections: list<array{title: string, markup: string}>}>, action: string, tabParam: string} $view */
 ?>
 <div class="wrap mahout-fields-page">
 	<h1><?php echo esc_html($view['screen']->pageTitle); ?></h1>
@@ -25,12 +25,12 @@
 <?php } ?>
 	<div class="mahout-fields-page__body">
 <?php } ?>
-<?php if ($view['hasFields']) { ?>
-		<form method="post" action="<?php echo esc_url($view['action']); ?>">
-			<input type="hidden" name="<?php echo esc_attr($view['tabParam']); ?>" value="<?php echo esc_attr($view['active']->label); ?>" data-mahout-tab-field>
-<?php } ?>
 <?php foreach ($view['panels'] as $panel) { ?>
-			<div class="mahout-fields-page__panel" data-mahout-panel="<?php echo esc_attr($panel['label']); ?>"<?php echo $panel['hidden'] ? ' hidden' : ''; ?>>
+		<div class="mahout-fields-page__panel" data-mahout-panel="<?php echo esc_attr($panel['label']); ?>"<?php echo $panel['hidden'] ? ' hidden' : ''; ?>>
+<?php if ($panel['hasFields']) { ?>
+			<form method="post" action="<?php echo esc_url($view['action']); ?>">
+				<input type="hidden" name="<?php echo esc_attr($view['tabParam']); ?>" value="<?php echo esc_attr($panel['label']); ?>" data-mahout-tab-field>
+<?php } ?>
 <?php foreach ($panel['sections'] as $section) { ?>
 				<div class="mahout-fields-page__section">
 <?php if ('' !== $section['title']) { ?>
@@ -39,11 +39,11 @@
 <?php echo $section['markup']; // each part's own markup, escaped at its own outputs?>
 				</div>
 <?php } ?>
-			</div>
-<?php } ?>
-<?php if ($view['hasFields']) { ?>
+<?php if ($panel['hasFields']) { ?>
 <?php submit_button(__('Save fields', 'mahout-fields')); ?>
-		</form>
+			</form>
+<?php } ?>
+		</div>
 <?php } ?>
 <?php if ($multi && Iniznet\Mahout\Fields\OptionScreenLayout::Sidebar === $view['screen']->layout) { ?>
 		</div>
