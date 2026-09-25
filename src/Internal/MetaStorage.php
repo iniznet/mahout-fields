@@ -87,6 +87,12 @@ final readonly class MetaStorage
      * delete never becomes a LIKE query, and the read is bounded by the
      * object's own meta count.
      *
+     * The addresses returned live in the field's own address space: the
+     * option context's stored keys carry the package's namespace, which is
+     * stripped on the way out, so every consumer — the reader's address
+     * parsing, the writer's stale-key delete — names the one address form
+     * for every context.
+     *
      * @return array<string, string|int|float|bool> the full address => the raw stored value
      */
     public function leaves(string $rootId, ObjectRef $object): array
@@ -94,6 +100,12 @@ final readonly class MetaStorage
         $prefix = ObjectContext::Option === $object->context
             ? self::OPTION_PREFIX.'/'.$rootId.'.'
             : $rootId.'.';
+
+        // The namespace the option keys carry in storage, removed from the
+        // addresses this method returns.
+        $strip = ObjectContext::Option === $object->context
+            ? \strlen(self::OPTION_PREFIX.'/')
+            : 0;
 
         $all = match ($object->context) {
             ObjectContext::Option => $this->optionLeaves(),
@@ -114,7 +126,7 @@ final readonly class MetaStorage
             $first = $values[0] ?? null;
 
             if (\is_scalar($first)) {
-                $leaves[$key] = $first;
+                $leaves[\substr($key, $strip)] = $first;
             }
         }
 
@@ -124,33 +136,63 @@ final readonly class MetaStorage
     public function writeLeaf(string $key, ObjectRef $object, string|int|float|bool $value): void
     {
         $canonical = $this->canonical($value);
+        $storedKey = $this->leafKey($key, $object);
 
         $written = match ($object->context) {
-            ObjectContext::Option => \update_option($key, $canonical),
-            ObjectContext::Post => \update_post_meta($object->id, $key, $canonical),
-            ObjectContext::User => \update_user_meta($object->id, $key, $canonical),
-            ObjectContext::Term => \update_term_meta($object->id, $key, $canonical),
+            ObjectContext::Option => \update_option($storedKey, $canonical),
+            ObjectContext::Post => \update_post_meta($object->id, $storedKey, $canonical),
+            ObjectContext::User => \update_user_meta($object->id, $storedKey, $canonical),
+            ObjectContext::Term => \update_term_meta($object->id, $storedKey, $canonical),
         };
 
-        if (!$written) {
+        // Core returns false both for a refused write and for an unchanged
+        // value, so a false return is verified before it is believed: the
+        // stored leaf must match what this write asked to store.
+        if (!$written && $canonical !== $this->storedLeaf($storedKey, $object)) {
             throw InvalidFieldWrite::metaRefused($key);
         }
     }
 
     public function deleteLeaf(string $key, ObjectRef $object): void
     {
+        $storedKey = $this->leafKey($key, $object);
+
         match ($object->context) {
-            ObjectContext::Option => \delete_option($key),
-            ObjectContext::Post => \delete_post_meta($object->id, $key),
-            ObjectContext::User => \delete_user_meta($object->id, $key),
-            ObjectContext::Term => \delete_term_meta($object->id, $key),
+            ObjectContext::Option => \delete_option($storedKey),
+            ObjectContext::Post => \delete_post_meta($object->id, $storedKey),
+            ObjectContext::User => \delete_user_meta($object->id, $storedKey),
+            ObjectContext::Term => \delete_term_meta($object->id, $storedKey),
         };
     }
 
     /**
-     * The option context's own enumeration: the loaded options, leaf keys only.
+     * The stored leaf key. The option context namespaces every key the
+     * package owns, so a leaf write, the enumeration leaves() reads through
+     * and the leaf delete all name the one key; the meta contexts key the
+     * object's own meta set directly, exactly as the root write does.
+     */
+    private function leafKey(string $key, ObjectRef $object): string
+    {
+        return ObjectContext::Option === $object->context
+            ? self::OPTION_PREFIX.'/'.$key
+            : $key;
+    }
+
+    private function storedLeaf(string $key, ObjectRef $object): ?string
+    {
+        $raw = ObjectContext::Option === $object->context
+            ? \get_option($key, null)
+            : $this->readMeta($object, $key);
+
+        return \is_scalar($raw) ? (string) $raw : null;
+    }
+
+    /**
+     * The option context's own enumeration: the loaded options, leaf keys
+     * only, each under its one-value group — the same grouped shape the meta
+     * API's enumeration returns, so leaves() reads one shape per context.
      *
-     * @return array<string, string|int|float|bool>
+     * @return array<string, array<int, string|int|float|bool>>
      */
     private function optionLeaves(): array
     {
@@ -160,7 +202,7 @@ final readonly class MetaStorage
 
         foreach ($all as $key => $value) {
             if (str_starts_with((string) $key, self::OPTION_PREFIX.'/') && \is_scalar($value)) {
-                $leaves[(string) $key] = $value;
+                $leaves[(string) $key] = [$value];
             }
         }
 

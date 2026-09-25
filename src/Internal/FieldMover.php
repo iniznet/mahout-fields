@@ -85,9 +85,13 @@ final readonly class FieldMover
         // A repeater's meta rows are its leaves, keyed by address, so the
         // discovery is a prefix match — no leading wildcard, served by the
         // meta_key index — while a scalar field matches its one key exactly.
+        // A field id may carry underscores and `_` is a LIKE wildcard: the
+        // id's own wildcards are escaped, so `fixture_items` never matches a
+        // neighbouring key such as `fixtureXitems`, while the trailing
+        // address wildcard stays literal.
         $repeater = $field instanceof RepeaterField;
         $match = $repeater ? 'LIKE %s' : '= %s';
-        $pattern = $fieldId.'.%';
+        $pattern = $repeater ? \addcslashes($fieldId, '\\_%').'.%' : $fieldId;
 
         $select = 'SELECT '.self::META_ID_COLUMN.', '.self::META_OBJECT_COLUMN
             .' FROM '.$this->metaTable()->quoted()

@@ -152,7 +152,7 @@ final readonly class FieldWriter implements FieldWriterContract
                 continue;
             }
 
-            $sanitised[$fieldId] = $this->sanitisedScalar($field, \is_scalar($value) ? $value : null, $object->id);
+            $sanitised[$fieldId] = $this->sanitisedScalar($field, $this->storableScalar($field->id, $value), $object->id);
         }
 
         return $this->storeGroup($group, $object, $sanitised, $expectedHash);
@@ -184,7 +184,7 @@ final readonly class FieldWriter implements FieldWriterContract
                     continue;
                 }
 
-                $this->storeScalar($registered, $object, \is_scalar($value) ? $value : null);
+                $this->storeScalar($registered, $object, $this->storableScalar($registered->field->id, $value));
             }
         };
 
@@ -225,14 +225,21 @@ final readonly class FieldWriter implements FieldWriterContract
 
         \do_action(Hooks::BEFORE_SAVE, $fieldId, $value, $field, $object->id);
 
-        $sanitised = $field instanceof RepeaterField
-            ? (\is_array($value) ? $this->sanitisedItems($field, $value, $field->id) : null)
-            : $this->sanitisedScalar($field, \is_scalar($value) ? $value : null, $object->id);
+        // Sanitisation runs once, before the transaction opens, and each
+        // arm's product keeps its own name: the closure's store step reads
+        // the one its field's resolved type names, so no coercion sits
+        // between the sanitised value and the store.
+        $sanitisedItems = $field instanceof RepeaterField && \is_array($value)
+            ? $this->sanitisedItems($field, $value, $field->id)
+            : null;
+        $sanitisedScalar = !$field instanceof RepeaterField
+            ? $this->sanitisedScalar($field, $this->storableScalar($fieldId, $value), $object->id)
+            : null;
 
         $group = $registered->group;
         $newHash = '';
 
-        $this->gateway->transactional(function () use ($registered, $group, $object, $sanitised, $expectedHash, &$newHash): void {
+        $this->gateway->transactional(function () use ($registered, $group, $object, $sanitisedItems, $sanitisedScalar, $expectedHash, &$newHash): void {
             // The lost-update guard is a read inside the transaction, before
             // any write -- the same guard writeGroup() carries, for the one
             // field the route writes.
@@ -243,9 +250,9 @@ final readonly class FieldWriter implements FieldWriterContract
             }
 
             if ($registered->field instanceof RepeaterField) {
-                $this->storeSanitisedItems($registered, $object, \is_array($sanitised) ? $sanitised : null);
+                $this->storeSanitisedItems($registered, $object, $sanitisedItems);
             } else {
-                $this->storeScalar($registered, $object, \is_scalar($sanitised) ? $sanitised : null);
+                $this->storeScalar($registered, $object, $sanitisedScalar);
             }
 
             $newHash = $this->mirror->write($object, $group->id, $this->snapshot->rows($group, $object));
@@ -378,6 +385,26 @@ final readonly class FieldWriter implements FieldWriterContract
         }
 
         return $sanitised;
+    }
+
+    /**
+     * The store step accepts exactly a scalar or the null that deletes. A
+     * value of any other shape reaching this point is a broken contract
+     * upstream of sanitisation, and is refused rather than coerced into a
+     * deletion. The value arrives as the caller sent it — the accepted union
+     * is the contracts' promise, not a guarantee this boundary can type, so
+     * the refusal is this method's whole purpose and the parameter carries
+     * no narrower type than the call site can prove.
+     *
+     * @param mixed $value the submitted value, unsanitised or sanitised
+     */
+    private function storableScalar(string $fieldId, mixed $value): string|int|float|bool|null
+    {
+        if (\is_scalar($value) || null === $value) {
+            return $value;
+        }
+
+        throw InvalidFieldWrite::unstorableValue($fieldId);
     }
 
     private function storeScalar(RegisteredField $registered, ObjectRef $object, string|int|float|bool|null $sanitised): void

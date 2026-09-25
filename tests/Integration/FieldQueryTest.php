@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iniznet\Mahout\Fields\Tests\Integration;
 
 use Iniznet\Mahout\Db\Exception\UnboundedStatement;
+use Iniznet\Mahout\Fields\DateField;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldDefinition;
 use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\FieldGroup;
@@ -15,6 +16,7 @@ use Iniznet\Mahout\Fields\ObjectRef;
 use Iniznet\Mahout\Fields\Operator;
 use Iniznet\Mahout\Fields\OrderDirection;
 use Iniznet\Mahout\Fields\RepeaterField;
+use Iniznet\Mahout\Fields\RepeaterItem;
 use Iniznet\Mahout\Fields\StorageTarget;
 use Iniznet\Mahout\Fields\Tests\Fixtures\RecordingSqlConnection;
 use Iniznet\Mahout\Fields\Tests\TestCase;
@@ -146,6 +148,31 @@ final class FieldQueryTest extends TestCase
 
         self::assertSame([$alpha], $ids, 'the query_path index answers the member-qualified scan.');
         self::assertSame(1, $this->query()->count('fixture_credits.fixture_role', Operator::Equals, 'author'));
+    }
+
+    public function testAQueriedDateMemberComparesThroughTheColumnItsWriteUsed(): void
+    {
+        $this->registry->register(new FieldGroup('fixture_events', ObjectContext::Post, [
+            new RepeaterField('fixture_event_list', StorageTarget::Table, new RepeaterItem([
+                new DateField('fixture_event_date', StorageTarget::Carried),
+            ])),
+        ]));
+
+        $alpha = (int) self::factory()->post->create();
+        $beta = (int) self::factory()->post->create();
+        $this->writer->setItems('fixture_event_list', ObjectRef::post($alpha), [
+            ['fixture_event_date' => '2024-06-01'],
+        ]);
+        $this->writer->setItems('fixture_event_list', ObjectRef::post($beta), [
+            ['fixture_event_date' => '2025-01-15'],
+        ]);
+
+        // The write and the member-qualified query resolve the Date leaf
+        // through the one type-to-column map: a divergence would make the
+        // stored leaf invisible to its own query.
+        $ids = $this->query()->postIds('fixture_event_list.fixture_event_date', Operator::Equals, '2024-06-01', 10);
+
+        self::assertSame([$alpha], $ids, 'a date leaf is written into and queried out of the same column.');
     }
 
     public function testABareRepeaterIdIsRefusedMemberQualified(): void

@@ -125,14 +125,15 @@ final readonly class FieldLeavesTable
         return self::VALUE_DATE;
     }
 
-    /** The value column that holds one scalar field's canonical value. */
+    /**
+     * The value column that holds one leaf's canonical value. The leaves
+     * table carries the same four value columns as the values table, so the
+     * type-to-column grammar is that table's one map: a leaf write and the
+     * member-qualified leaf query resolve through the same column, whatever
+     * the type, and the two maps cannot drift apart again.
+     */
     public static function columnFor(FieldType $type): ?string
     {
-        return match ($type) {
-            FieldType::Text, FieldType::TextArea, FieldType::Email, FieldType::Url, FieldType::Choice, FieldType::Date => self::VALUE_TEXT,
-            FieldType::Integer, FieldType::Boolean => self::VALUE_INT,
-            FieldType::Decimal => self::VALUE_DEC,
-            FieldType::Repeater => null,
-        };
+        return FieldValuesTable::columnFor($type);
     }
 }

@@ -6,6 +6,7 @@ namespace Iniznet\Mahout\Fields\Tests\Integration;
 
 use Iniznet\Mahout\Fields\Exception\ConcurrentEditLost;
 use Iniznet\Mahout\Fields\Exception\FieldNotFound;
+use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\IntegerField;
 use Iniznet\Mahout\Fields\MirrorCodec;
@@ -40,6 +41,20 @@ final class GroupWriteTest extends TestCase
         self::assertSame('first', $this->reader->value('fixture_text', ObjectRef::post($postId)));
         self::assertSame($newHash, $this->mirror->currentHash(ObjectRef::post($postId), 'fixture_group'));
         self::assertNotSame(MirrorCodec::hash([]), $newHash, 'a group with a stored row must not hash to the empty set');
+    }
+
+    public function testAValueThatIsNeitherScalarArrayNorNullIsRefused(): void
+    {
+        $postId = $this->postId();
+        $this->registry->register($this->tableGroup());
+
+        // An object would otherwise fall through the shape guards into the
+        // store step, where the scalar coercion would silently delete the
+        // stored value: the write is refused before anything runs.
+        $this->expectException(InvalidFieldWrite::class);
+        $this->writer->writeGroup('fixture_group', ObjectRef::post($postId), [
+            'fixture_text' => new \stdClass(),
+        ], MirrorCodec::hash([]));
     }
 
     public function testASecondWriteWithTheCurrentHashPasses(): void

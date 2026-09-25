@@ -202,6 +202,11 @@ repeater is the developer's declaration, answered member-qualified
 (`credits.role`) over the leaves table's index — slower is the developer's
 choice, not the theme's.
 
+In the option context, every key the package owns — a scalar field's one key
+as much as a repeater leaf's address — is stored under the package's prefix
+(`mahout_fields/tags.0`); the address a read or a write names is always the
+field's own, and the prefix exists only inside the adapter.
+
 A `Table` field cannot be bound as a block attribute. **Sensitive values** go in
 neither target: constants or environment only.
 

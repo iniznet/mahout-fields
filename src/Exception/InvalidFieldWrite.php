@@ -39,6 +39,11 @@ final class InvalidFieldWrite extends \LogicException implements MahoutException
         return new self(sprintf('Field "%s" is scalar; write it through set(), never as an item list.', $fieldId), $fieldId, 'shape');
     }
 
+    public static function unstorableValue(string $fieldId): self
+    {
+        return new self(sprintf('Field "%s" reached the store step with a value that is neither scalar nor null; the write is refused, never coerced into a deletion.', $fieldId), $fieldId, 'shape');
+    }
+
     public static function jsonIntoItemsTable(string $fieldId): self
     {
         return new self(sprintf('Repeater "%s" binds the items table; a JSON payload is the Meta shape, not this one.', $fieldId), $fieldId, 'target');

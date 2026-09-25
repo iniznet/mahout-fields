@@ -192,6 +192,35 @@ final class RepeaterTest extends TestCase
         self::assertSame([['fixture_title' => 'Intro', 'fixture_blocks' => ['alpha']]], $items);
     }
 
+    public function testAnOptionRepeaterRoundTripsUnderTheOwnedPrefix(): void
+    {
+        $this->registry->register(new FieldGroup('fixture_site_tags', ObjectContext::Option, [
+            new RepeaterField('fixture_site_tag_list', StorageTarget::Meta, new TextField('fixture_site_tag_item', StorageTarget::Carried)),
+        ]));
+
+        $object = ObjectRef::option();
+        $this->writer->setItems('fixture_site_tag_list', $object, ['dawn', 'dusk']);
+
+        // The leaves live under the package's option prefix — the same
+        // prefix the enumeration reads — and no unprefixed orphan option is
+        // created beside them.
+        self::assertSame(['dawn', 'dusk'], $this->reader->items('fixture_site_tag_list', $object));
+        self::assertSame('dawn', \get_option('mahout_fields/fixture_site_tag_list.0'));
+        self::assertFalse(\get_option('fixture_site_tag_list.0', false), 'no unprefixed leaf option is written');
+
+        // A second identical save is a no-op, not a refusal: core returns
+        // false for an unchanged option and the adapter verifies before it
+        // believes. A shrinking save deletes the dropped leaf by exact key.
+        $this->writer->setItems('fixture_site_tag_list', $object, ['dawn', 'dusk']);
+        self::assertSame(['dawn', 'dusk'], $this->reader->items('fixture_site_tag_list', $object));
+
+        $this->writer->setItems('fixture_site_tag_list', $object, ['dawn']);
+        self::assertSame(['dawn'], $this->reader->items('fixture_site_tag_list', $object));
+        self::assertFalse(\get_option('mahout_fields/fixture_site_tag_list.1', false), 'the dropped leaf is deleted by exact key');
+
+        \delete_option('mahout_fields/fixture_site_tag_list.0');
+    }
+
     public function testAnAddressPastTheByteCapIsRefused(): void
     {
         $postId = $this->postId();

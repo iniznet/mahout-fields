@@ -109,6 +109,23 @@ final class FieldMigrationTest extends TestCase
         self::assertSame(['paperback', 'hardcover'], $this->repeaterTableReader()->items('fixture_items', $object));
     }
 
+    public function testAnUnderscoreInTheFieldIdNeverMatchesANeighbouringKey(): void
+    {
+        $postId = $this->postId();
+        $this->registry->register($this->metaRepeaterGroup());
+        $object = ObjectRef::post($postId);
+        $this->writer->setItems('fixture_items', $object, ['paperback']);
+
+        // `_` is a LIKE wildcard: an unescaped id pattern would consume this
+        // neighbouring key's rows as if the repeater owned them.
+        \update_post_meta($postId, 'fixtureXitems.0', 'decoy');
+
+        (new MigrateFieldMetaToTable($this->registry, $this->gateway, $this->connection(), 'fixture_items'))->up();
+
+        self::assertSame(['paperback'], $this->repeaterTableReader()->items('fixture_items', $object));
+        self::assertSame('decoy', \get_post_meta($postId, 'fixtureXitems.0', true), 'the neighbouring key belongs to no repeater: the migration must not consume it');
+    }
+
     public function testTableToMetaMovesRepeaterItemsBackIntoAddressedMetaKeys(): void
     {
         $postId = $this->postId();

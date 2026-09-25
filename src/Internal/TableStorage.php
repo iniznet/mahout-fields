@@ -110,7 +110,11 @@ final readonly class TableStorage
             ])));
 
             foreach ($leaves as $leaf) {
-                $column = FieldValuesTable::columnFor($leaf['field']->type());
+                // The leaves table owns the leaf's column, and the leaf
+                // query reads through the same map: a write and its
+                // member-qualified query can never disagree about where a
+                // type lives.
+                $column = FieldLeavesTable::columnFor($leaf['field']->type());
 
                 if (null === $column) {
                     throw InvalidFieldWrite::jsonIntoItemsTable($field->id);
