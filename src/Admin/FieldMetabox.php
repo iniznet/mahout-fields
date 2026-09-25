@@ -6,7 +6,6 @@ namespace Iniznet\Mahout\Fields\Admin;
 
 use Iniznet\Mahout\Fields\Contracts\FieldEditor;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
-use Iniznet\Mahout\Fields\Exception\GroupNotFound;
 use Iniznet\Mahout\Fields\ObjectKind;
 
 /**
@@ -70,21 +69,16 @@ final readonly class FieldMetabox
 
     private function title(string $groupId): string
     {
-        try {
-            $label = $this->registry->group($groupId)->label;
+        // The panel was declared, so an unknown group is a composition
+        // error: it refuses loudly, it never degrades to a raw id or the
+        // default context.
+        $label = $this->registry->group($groupId)->label;
 
-            return $label ?? $groupId;
-        } catch (GroupNotFound) {
-            return $groupId;
-        }
+        return $label ?? $groupId;
     }
 
     private function context(string $groupId): string
     {
-        try {
-            return $this->registry->group($groupId)->compact ? 'side' : 'normal';
-        } catch (GroupNotFound) {
-            return 'normal';
-        }
+        return $this->registry->group($groupId)->compact ? 'side' : 'normal';
     }
 }

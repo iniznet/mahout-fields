@@ -8,6 +8,7 @@ use Iniznet\Mahout\Fields\Admin\FieldSaveHandler;
 use Iniznet\Mahout\Fields\Admin\Nonces;
 use Iniznet\Mahout\Fields\Admin\SaveRefusalReason;
 use Iniznet\Mahout\Fields\Admin\WriteFailureNotice;
+use Iniznet\Mahout\Fields\Exception\MalformedNoticePayload;
 use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\FieldPanel;
 use Iniznet\Mahout\Fields\IntegerField;
@@ -307,6 +308,17 @@ final class SaveLifecycleTest extends TestCase
         $taken = (new WriteFailureNotice())->take((int) get_current_user_id(), $postId);
         self::assertNotNull($taken);
         self::assertSame(self::SECOND_GROUP, $taken->groupId, 'the first refusal is the one the notice carries');
+    }
+
+    public function testACorruptNoticePayloadIsRefusedNeverSurfaced(): void
+    {
+        // The transient was not written by queue(): the store refuses to
+        // surface a shape it did not write, rather than render a notice with
+        // substituted empty fields.
+        \set_transient('mahout_fields_write_failed_1__5', ['group' => 'only'], \HOUR_IN_SECONDS);
+
+        $this->expectException(MalformedNoticePayload::class);
+        (new WriteFailureNotice())->take(1, 5);
     }
 
     public function testARefusedValueWritesNothingThroughTheRealWriter(): void

@@ -8,6 +8,7 @@ use Iniznet\Mahout\Db\Contracts\SqlConnection;
 use Iniznet\Mahout\Db\Contracts\TableGateway;
 use Iniznet\Mahout\Db\Internal\WpdbTableGateway;
 use Iniznet\Mahout\Fields\Admin\FieldEditor as FieldEditorImplementation;
+use Iniznet\Mahout\Fields\Admin\FieldMetabox;
 use Iniznet\Mahout\Fields\Admin\FieldStyles;
 use Iniznet\Mahout\Fields\Admin\FieldsUiProvider;
 use Iniznet\Mahout\Fields\Admin\FieldTypeRegistry;
@@ -20,6 +21,7 @@ use Iniznet\Mahout\Fields\Contracts\FieldUiPolicy;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
 use Iniznet\Mahout\Fields\Contracts\Panels;
 use Iniznet\Mahout\Fields\Contracts\RequestInput as RequestInputContract;
+use Iniznet\Mahout\Fields\Exception\GroupNotFound;
 use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\FieldPanel;
 use Iniznet\Mahout\Fields\FieldsProvider;
@@ -111,6 +113,26 @@ final class FieldsUiProviderTest extends TestCase
 
         self::assertArrayHasKey('mahout-fields-'.self::GROUP, $registered, 'the panel registers its metabox on the screen it declares');
         self::assertSame('Fixture panel', $registered['mahout-fields-'.self::GROUP]['title'], 'the title is the declaration\'s label');
+    }
+
+    public function testAnUnknownGroupRefusesItsRegistrationAsACompositionError(): void
+    {
+        $postId = $this->postId();
+        $this->registry->register($this->group());
+        $container = $this->container(new DeclaredPanels([new FieldPanel('post', $this->group())]));
+        (new FieldsUiProvider())->boot($container);
+
+        $this->loadMetaBoxApi();
+        $this->signInAsEditor();
+
+        // The metabox was declared for this screen, so a group the registry
+        // does not carry is a composition error: it refuses loudly, it never
+        // degrades to a raw id or the default context.
+        $this->expectException(GroupNotFound::class);
+        (new FieldMetabox(
+            $container->get(FieldEditorContract::class),
+            $this->registry,
+        ))->register('post', 'fixture_unknown_group');
     }
 
     public function testAPanelIsNotRegisteredForAUserWithoutTheCapability(): void
