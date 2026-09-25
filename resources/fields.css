@@ -87,3 +87,10 @@
 	color: #b32d2e;
 	text-decoration: none;
 }
+
+/* Repeaters: the two declared layouts. */
+.mahout-fields-items--stacked { display: flex; flex-direction: column; gap: 12px; }
+.mahout-fields-item--stacked { border: 1px solid #dcdcde; border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.mahout-fields-items--rows { display: flex; flex-direction: column; gap: 6px; }
+.mahout-fields-item--row { display: flex; gap: 8px; align-items: flex-start; }
+.mahout-fields-item--row > * { flex: 1 1 auto; }

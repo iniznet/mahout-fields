@@ -15,6 +15,7 @@ use Iniznet\Mahout\Fields\Admin\Control\TextAreaControl;
 use Iniznet\Mahout\Fields\Admin\Control\TextControl;
 use Iniznet\Mahout\Fields\Admin\Control\UrlControl;
 use Iniznet\Mahout\Fields\Admin\FieldControlProps;
+use Iniznet\Mahout\Fields\Admin\MemberControl;
 use Iniznet\Mahout\Fields\FieldType;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 
@@ -102,7 +103,22 @@ final class ControlRenderTest extends TestCase
 
     public function testTheRepeaterControlRendersOneInputPerStoredItem(): void
     {
-        $markup = (new RepeaterControl())->render($this->props(items: ['alpha', 'beta'], repeaterItems: true));
+        $member = fn (string $value): MemberControl => new MemberControl(
+            new TextControl(),
+            new FieldControlProps(
+                fieldId: 'fixture_item',
+                type: FieldType::Text,
+                label: 'Item',
+                inputName: 'mahout_fields_panel[fixture_group][fixture_text][]',
+                inputId: 'mahout-field-fixture_item',
+                value: $value,
+            ),
+        );
+
+        $markup = (new RepeaterControl())->render($this->props(
+            repeaterItems: true,
+            rows: [[$member('alpha')], [$member('beta')]],
+        ));
 
         self::assertSame(2, substr_count($markup, '<input'), 'one input per stored item, at its position');
         self::assertSame(2, substr_count($markup, '[]'), 'a repeater\'s name carries the list suffix on every input');
@@ -131,6 +147,7 @@ final class ControlRenderTest extends TestCase
         bool $required = false,
         bool $disabled = false,
         bool $repeaterItems = false,
+        array $rows = [],
     ): FieldControlProps {
         return new FieldControlProps(
             fieldId: 'fixture_text',
@@ -145,6 +162,7 @@ final class ControlRenderTest extends TestCase
             disabled: $disabled,
             options: $options,
             items: $items,
+            rows: $rows,
         );
     }
 }

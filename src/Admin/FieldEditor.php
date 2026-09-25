@@ -13,7 +13,7 @@ use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldUiPolicy;
 use Iniznet\Mahout\Fields\Exception\InvalidControlOverride;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
-use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
+use Iniznet\Mahout\Fields\Field;
 use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectKind;
@@ -118,6 +118,112 @@ final readonly class FieldEditor implements FieldEditorContract
     }
 
     /**
+     * One row per stored item, each row the member controls that submit it.
+     * A scalar item is one control; a composite item is one control per
+     * member; a nested repeater member recurses, its input name carrying the
+     * position chain the writer's address grammar reads back.
+     *
+     * @param list<mixed>           $items
+     * @param array<string, string> $errors
+     *
+     * @return list<list<MemberControl>>
+     */
+    private function repeaterRows(RepeaterField $field, string $nameBase, string $idBase, array $items, array $errors): array
+    {
+        $rows = [];
+        $scalar = $field->item instanceof Field;
+
+        foreach ($items as $position => $item) {
+            $row = [];
+
+            if ($scalar) {
+                $row[] = $this->memberControl(
+                    $field->item,
+                    $nameBase.'[]',
+                    $idBase.'-'.$position,
+                    \is_scalar($item) ? $item : null,
+                    $errors,
+                );
+
+                $rows[] = $row;
+
+                continue;
+            }
+
+            if (!\is_array($item)) {
+                continue;
+            }
+
+            foreach ($field->members() as $member) {
+                $value = $item[$member->id] ?? null;
+
+                if ($member instanceof RepeaterField) {
+                    $row[] = $this->repeaterMember(
+                        $member,
+                        $nameBase.'['.$position.']['.$member->id.']',
+                        $idBase.'-'.$position.'-'.$member->id,
+                        \is_array($value) ? $value : [],
+                        $errors,
+                    );
+
+                    continue;
+                }
+
+                $row[] = $this->memberControl(
+                    $member,
+                    $nameBase.'['.$position.']['.$member->id.']',
+                    $idBase.'-'.$position.'-'.$member->id,
+                    \is_scalar($value) ? $value : null,
+                    $errors,
+                );
+            }
+
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     */
+    private function repeaterMember(RepeaterField $field, string $nameBase, string $idBase, array $items, array $errors): MemberControl
+    {
+        $scalar = $field->item instanceof Field;
+
+        return new MemberControl(
+            new RepeaterControl(),
+            new FieldControlProps(
+                fieldId: $field->id,
+                type: $field->type(),
+                label: $field->label ?? $field->id,
+                inputName: $nameBase.($scalar ? '[]' : ''),
+                inputId: $idBase,
+                emptyLabel: $field->emptyLabel(),
+                rows: $this->repeaterRows($field, $nameBase, $idBase, $items, $errors),
+                layout: $field->layout,
+            ),
+        );
+    }
+
+    private function memberControl(Field $member, string $inputName, string $inputId, string|int|float|bool|null $value, array $errors): MemberControl
+    {
+        $props = new FieldControlProps(
+            fieldId: $member->id,
+            type: $member->type(),
+            label: $member->label ?? $member->id,
+            inputName: $inputName,
+            inputId: $inputId,
+            value: $value,
+            emptyLabel: $member->emptyLabel(),
+            error: $errors[$member->id] ?? null,
+            options: $member instanceof ChoiceField ? $member->options : [],
+        );
+
+        return new MemberControl($this->controls->control($member->type()), $props);
+    }
+
+    /**
      * The projection both entries share: every value read through the field
      * layer, the expected-state hash read back from the group's reference, and
      * the object kind taken from the object -- null for the option context,
@@ -133,24 +239,23 @@ final readonly class FieldEditor implements FieldEditorContract
             $ui = $this->ui?->fields()[$field->id] ?? null;
 
             if ($field instanceof RepeaterField) {
-                $items = $this->reader->items($field->id, $object);
-
-                foreach ($items as $item) {
-                    if (!\is_scalar($item)) {
-                        throw InvalidFieldWrite::recordedItems($field->id);
-                    }
-                }
+                $base = Nonces::valueField().'['.$group->id.']['.$field->id.']';
+                $scalar = $field->item instanceof Field;
 
                 $controlProps[] = new FieldControlProps(
                     fieldId: $field->id,
                     type: $field->type(),
                     styled: null === $ui || $ui->styled,
                     label: $field->label ?? $field->id,
-                    inputName: Nonces::valueField().'['.$group->id.']['.$field->id.'][]',
+                    // A scalar item submits one list; a composite item submits
+                    // one member-keyed record per position.
+                    inputName: $base.($scalar ? '[]' : ''),
                     inputId: 'mahout-field-'.$field->id,
                     emptyLabel: $field->emptyLabel(),
                     error: $errors[$field->id] ?? null,
-                    items: $items,
+                    items: $this->reader->items($field->id, $object),
+                    rows: $this->repeaterRows($field, $base, 'mahout-field-'.$field->id, $this->reader->items($field->id, $object), $errors),
+                    layout: $field->layout,
                 );
 
                 continue;

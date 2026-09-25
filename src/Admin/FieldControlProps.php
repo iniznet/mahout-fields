@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iniznet\Mahout\Fields\Admin;
 
 use Iniznet\Mahout\Fields\FieldType;
+use Iniznet\Mahout\Fields\RepeaterLayout;
 
 /**
  * One control's typed props: everything the control renders and nothing it
@@ -16,6 +17,7 @@ final readonly class FieldControlProps
     /**
      * @param list<string>                     $options the choice field's closed set
      * @param list<string|int|float|bool|null> $items   the repeater's stored items, in position order
+     * @param list<list<MemberControl>>        $rows    the repeater's items, each rendered as its members' controls
      */
     public function __construct(
         public string $fieldId,
@@ -31,6 +33,8 @@ final readonly class FieldControlProps
         public bool $disabled = false,
         public array $options = [],
         public array $items = [],
+        public array $rows = [],
+        public RepeaterLayout $layout = RepeaterLayout::Stacked,
         public bool $styled = true,
     ) {
     }
