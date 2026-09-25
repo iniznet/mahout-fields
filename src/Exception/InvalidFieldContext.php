@@ -37,6 +37,16 @@ final class InvalidFieldContext extends \LogicException implements MahoutExcepti
         );
     }
 
+    public static function undeclaredForPostType(string $groupId, string $postType): self
+    {
+        return new self(
+            sprintf('Group "%s" is not declared for post type "%s"; the submission names no panel this screen renders.', $groupId, $postType),
+            $groupId,
+            $postType,
+            'no panel',
+        );
+    }
+
     public static function panelObject(string $groupId, string $declared, int $objectId): self
     {
         $given = (string) $objectId;

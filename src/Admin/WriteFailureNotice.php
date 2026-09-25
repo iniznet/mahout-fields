@@ -6,27 +6,29 @@ namespace Iniznet\Mahout\Fields\Admin;
 
 /**
  * The write-failure notice: the refusal store. save_post must not wp_die(), so
- * a refused classic-path save is queued as a one-shot transient for the user
- * who submitted the form and surfaced on the next admin screen load by
- * Admin\WriteFailureNoticeRenderer, which Admin\FieldsUiProvider attaches.
- * An option screen's refused save queues under the screen's own key and is
- * surfaced the same way, on the screen's next load. Queue and take are the
- * only operations here, and nothing is retried and nothing is substituted.
+ * a refused classic-path save is queued as a one-shot transient keyed to the
+ * user who submitted the form and the post it edits -- another user opening
+ * the same post finds no notice to take -- and surfaced on the next admin
+ * screen load by Admin\WriteFailureNoticeRenderer, which
+ * Admin\FieldsUiProvider attaches. An option screen's refused save queues
+ * under the screen's own key and is surfaced the same way, on the screen's
+ * next load. Queue and take are the only operations here, and nothing is
+ * retried and nothing is substituted.
  */
 final readonly class WriteFailureNotice
 {
     private const int TTL = \HOUR_IN_SECONDS;
 
-    /** Queue one refusal for the post's editing user; never throws. */
-    public function queue(int $postId, SaveRefusal $refusal): void
+    /** Queue one refusal for the user who submitted the form and the post it edits; never throws. */
+    public function queue(int $userId, int $postId, SaveRefusal $refusal): void
     {
-        \set_transient($this->key($postId), self::payload($refusal), self::TTL);
+        \set_transient($this->key($userId, $postId), self::payload($refusal), self::TTL);
     }
 
     /** Take the queued refusal for this user and post, or return null. */
     public function take(int $userId, int $postId): ?QueuedRefusal
     {
-        return $this->takeKey($this->key($postId));
+        return $this->takeKey($this->key($userId, $postId));
     }
 
     /** Queue one refusal for one option screen; never throws. */
@@ -60,9 +62,9 @@ final readonly class WriteFailureNotice
         return QueuedRefusal::fromPayload($payload);
     }
 
-    private function key(int $postId): string
+    private function key(int $userId, int $postId): string
     {
-        return 'mahout_fields_write_failed_'.(int) $postId;
+        return 'mahout_fields_write_failed_'.(int) $userId.'__'.(int) $postId;
     }
 
     private function screenKey(string $slug): string

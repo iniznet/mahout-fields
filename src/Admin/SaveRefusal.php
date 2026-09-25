@@ -7,6 +7,7 @@ namespace Iniznet\Mahout\Fields\Admin;
 use Iniznet\Mahout\Fields\Exception\AuthorizationDenied;
 use Iniznet\Mahout\Fields\Exception\ConcurrentEditLost;
 use Iniznet\Mahout\Fields\Exception\FieldNotFound;
+use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldValue;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\Exception\InvalidFilterResult;
@@ -71,7 +72,7 @@ final readonly class SaveRefusal
             return [SaveRefusalReason::ConcurrentEditLost, Level::Warning];
         }
 
-        if ($refusal instanceof FieldNotFound) {
+        if ($refusal instanceof FieldNotFound || $refusal instanceof InvalidFieldContext) {
             return [SaveRefusalReason::FieldShape, Level::Warning];
         }
 

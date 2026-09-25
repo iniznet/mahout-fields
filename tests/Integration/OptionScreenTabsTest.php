@@ -8,6 +8,7 @@ use Iniznet\Mahout\Fields\Admin\FieldStyles;
 use Iniznet\Mahout\Fields\Admin\FieldsUiProvider;
 use Iniznet\Mahout\Fields\Admin\Nonces;
 use Iniznet\Mahout\Fields\Admin\OptionScreenManager;
+use Iniznet\Mahout\Fields\Admin\WriteFailureNotice;
 use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry as FieldRegistryContract;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
@@ -194,6 +195,7 @@ final class OptionScreenTabsTest extends TestCase
 
         self::assertSame(1, substr_count($markup, '<form'), 'each fields panel is its own form: a tab that carries no fields renders none');
         self::assertSame(1, substr_count($markup, 'class="submit"'), 'one save button, on the one fields panel');
+        self::assertSame(1, substr_count($markup, 'name="'.Nonces::nonceField().'"'), 'one nonce per form: the later field sections render none');
         self::assertStringContainsString('<h2>Fixture group</h2>', $markup, 'a titled section renders its heading');
         self::assertStringContainsString('<p class="description">Fixture options intro.</p>', $markup, 'the page\'s own intro renders');
         self::assertStringContainsString('type="hidden" name="'.OptionScreenManager::TAB_PARAM.'" value="'.self::FIELDS_TAB.'"', $markup, 'the form carries the active tab back');
@@ -369,6 +371,41 @@ final class OptionScreenTabsTest extends TestCase
 
         self::assertSame('first group saved', $this->reader->value('fixture_text', ObjectRef::option()));
         self::assertSame('second group saved', $this->reader->value('fixture_second_text', ObjectRef::option()), 'every field section of the active tab is saved, in the order the sections render');
+    }
+
+    public function testTheFirstRefusalStopsTheScreensSubmission(): void
+    {
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->signInAsAdministrator();
+
+        // The second group submits a field id its declaration does not name:
+        // the shape refusal stops the submission, and the notice carries it.
+        $container = $this->container(
+            new ArrayRequestInput(
+                body: [Nonces::nonceField() => \wp_create_nonce(Nonces::screenAction(self::SLUG))],
+                groups: [
+                    self::GROUP => ['fixture_text' => 'kept'],
+                    self::SECOND_GROUP => ['ghost_field' => 'refused'],
+                ],
+                hashes: [self::GROUP => MirrorCodec::hash([])],
+                params: ['tab' => self::FIELDS_TAB],
+            ),
+            [$this->tabbedScreen()],
+        );
+        (new FieldsUiProvider())->boot($container);
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+        \do_action(Hooks::screenLoad(\get_plugin_page_hookname(self::SLUG, 'options-general.php')));
+
+        self::assertSame('kept', $this->reader->value('fixture_text', ObjectRef::option()));
+
+        $taken = (new WriteFailureNotice())->takeForScreen(self::SLUG);
+        self::assertNotNull($taken);
+        self::assertSame(self::SECOND_GROUP, $taken->groupId);
+        self::assertSame('field_shape', $taken->reason);
     }
 
     public function testTheSaveWritesOnlyTheActiveTabsGroups(): void

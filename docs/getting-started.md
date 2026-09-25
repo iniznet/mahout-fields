@@ -234,9 +234,11 @@ nothing can be submitted to it. A screen with no field group anywhere also
 registers no save entry, because nothing can fail on it. Each fields panel is
 its own form: a submission posts exactly the panel it came from, and the save
 writes that tab's groups, group by group, in the order its sections render,
-through the same guard order the metaboxes use. Each form carries its tab
-back as a hidden field, and the request adapter's `param()` is the one
-boundary it is read through.
+through the same guard order the metaboxes use. A refused group stops the
+submission -- the refused group wrote nothing, and no later group of the same
+submission writes either -- and the notice names the group that refused. Each
+form carries its tab back as a hidden field, and the request adapter's
+`param()` is the one boundary it is read through.
 
 The page is one load: every tab's sections render, the inactive panel
 hidden, and the package's own script swaps the visible panel without a

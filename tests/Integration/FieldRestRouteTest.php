@@ -7,6 +7,7 @@ namespace Iniznet\Mahout\Fields\Tests\Integration;
 use Iniznet\Mahout\Fields\Admin\FieldRestRoute;
 use Iniznet\Mahout\Fields\FieldGroup;
 use Iniznet\Mahout\Fields\IntegerField;
+use Iniznet\Mahout\Fields\Internal\PostLock;
 use Iniznet\Mahout\Fields\MirrorCodec;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\StorageTarget;
@@ -215,7 +216,7 @@ final class FieldRestRouteTest extends TestCase
 
     private function route(): FieldRestRoute
     {
-        return $this->route ??= new FieldRestRoute($this->registry, $this->writer, $this->reader, $this->diagnostics());
+        return $this->route ??= new FieldRestRoute($this->registry, $this->writer, $this->reader, $this->diagnostics(), new PostLock());
     }
 
     /** @param array<string, mixed> $body */

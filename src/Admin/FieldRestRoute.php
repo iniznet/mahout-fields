@@ -41,7 +41,7 @@ final readonly class FieldRestRoute
         private FieldWriter $writer,
         private FieldReader $reader,
         private Diagnostics $diagnostics,
-        private PostLock $lock = new PostLock(),
+        private PostLock $lock,
     ) {
     }
 

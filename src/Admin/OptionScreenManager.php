@@ -72,7 +72,7 @@ final readonly class OptionScreenManager
         private FieldWriter $writer,
         private RequestInput $request,
         private Diagnostics $diagnostics,
-        private WriteFailureNotice $notices = new WriteFailureNotice(),
+        private WriteFailureNotice $notices,
     ) {
     }
 
@@ -163,6 +163,7 @@ final readonly class OptionScreenManager
             // panel it came from. The nonce is per screen action, so every
             // fields panel verifies against the same save.
             $panelNonce = '';
+            $firstFieldSection = true;
             $sections = [];
 
             foreach ($tab->sections as $section) {
@@ -173,7 +174,13 @@ final readonly class OptionScreenManager
                         $panelNonce = \wp_nonce_field(Nonces::screenAction($screen->pageSlug), Nonces::nonceField(), true, false);
                     }
 
-                    $markup = $this->editor->render($this->editor->propsForGroup($section->group->id, $panelNonce));
+                    // Exactly one nonce per form: the first field section's
+                    // props carry it, the later sections render none.
+                    $markup = $this->editor->render($this->editor->propsForGroup(
+                        $section->group->id,
+                        $firstFieldSection ? $panelNonce : '',
+                    ));
+                    $firstFieldSection = false;
                 } else {
                     $markup = self::contentMarkup($section->markupPath ?? '');
                 }
@@ -289,7 +296,12 @@ final readonly class OptionScreenManager
                     $this->request->hashes()[$group->id] ?? '',
                 );
             } catch (MahoutException $refusal) {
+                // The lifecycle refuses loudly and stops: the refused group
+                // wrote nothing, and no later group of the same submission
+                // writes either.
                 $this->refuse($screen, $refusal, $group->id);
+
+                return;
             }
         }
     }

@@ -17,6 +17,7 @@ use Iniznet\Mahout\Fields\Contracts\RequestInput as RequestInputContract;
 use Iniznet\Mahout\Fields\Field;
 use Iniznet\Mahout\Fields\FieldPanel;
 use Iniznet\Mahout\Fields\Hooks;
+use Iniznet\Mahout\Fields\Internal\PostLock;
 use Iniznet\Mahout\Kernel\Container;
 use Iniznet\Mahout\Kernel\Contracts\ServiceProvider;
 use Iniznet\Mahout\Kernel\Diagnostics;
@@ -80,12 +81,15 @@ final class FieldsUiProvider implements ServiceProvider
 
     public function boot(Container $container): void
     {
+        // One refusal store for both save paths: the metabox path keys its
+        // notices per user and post, the option screens per screen slug, and
+        // the store is stateless -- the seam is the value, not the instance.
+        $notices = new WriteFailureNotice();
+
         if ($container->has(Panels::class)) {
             $panels = $container->get(Panels::class);
 
             if (!$panels->isEmpty()) {
-                $notices = new WriteFailureNotice();
-
                 $this->attachMetaboxes($container, $panels);
                 $this->attachSave($container, $notices);
                 $this->attachRest($container, $panels);
@@ -93,7 +97,7 @@ final class FieldsUiProvider implements ServiceProvider
             }
         }
 
-        $this->attachOptionScreens($container);
+        $this->attachOptionScreens($container, $notices);
         $this->attachStyles($container);
     }
 
@@ -139,6 +143,8 @@ final class FieldsUiProvider implements ServiceProvider
             writer: $container->get(FieldWriterContract::class),
             registry: $container->get(FieldRegistryContract::class),
             diagnostics: $container->get(Diagnostics::class),
+            panels: $container->get(Panels::class),
+            lock: new PostLock(),
             notices: $notices,
         );
 
@@ -158,6 +164,7 @@ final class FieldsUiProvider implements ServiceProvider
             $container->get(FieldWriterContract::class),
             $container->get(FieldReaderContract::class),
             $container->get(Diagnostics::class),
+            lock: new PostLock(),
         );
 
         \add_action(
@@ -241,7 +248,7 @@ final class FieldsUiProvider implements ServiceProvider
         );
     }
 
-    private function attachOptionScreens(Container $container): void
+    private function attachOptionScreens(Container $container, WriteFailureNotice $notices): void
     {
         if (!$container->has(OptionScreens::class)) {
             return;
@@ -259,6 +266,7 @@ final class FieldsUiProvider implements ServiceProvider
             writer: $container->get(FieldWriterContract::class),
             request: $container->get(RequestInputContract::class),
             diagnostics: $container->get(Diagnostics::class),
+            notices: $notices,
         );
 
         \add_action(Hooks::ADMIN_MENU, $manager->register(...), priority: 10, accepted_args: 0);

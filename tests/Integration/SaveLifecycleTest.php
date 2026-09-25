@@ -9,12 +9,15 @@ use Iniznet\Mahout\Fields\Admin\Nonces;
 use Iniznet\Mahout\Fields\Admin\SaveRefusalReason;
 use Iniznet\Mahout\Fields\Admin\WriteFailureNotice;
 use Iniznet\Mahout\Fields\FieldGroup;
+use Iniznet\Mahout\Fields\FieldPanel;
 use Iniznet\Mahout\Fields\IntegerField;
+use Iniznet\Mahout\Fields\Internal\PostLock;
 use Iniznet\Mahout\Fields\MirrorCodec;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectRef;
 use Iniznet\Mahout\Fields\StorageTarget;
 use Iniznet\Mahout\Fields\Tests\Fixtures\ArrayRequestInput;
+use Iniznet\Mahout\Fields\Tests\Fixtures\DeclaredPanels;
 use Iniznet\Mahout\Fields\Tests\Fixtures\RecordingWriter;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 use Iniznet\Mahout\Fields\TextField;
@@ -32,6 +35,10 @@ use Iniznet\Mahout\Kernel\Level;
 final class SaveLifecycleTest extends TestCase
 {
     private const string GROUP = 'fixture_group';
+
+    private const string SECOND_GROUP = 'fixture_second_group';
+
+    private const string THIRD_GROUP = 'fixture_third_group';
 
     public function testAnAutosavePassesThroughSilently(): void
     {
@@ -94,6 +101,9 @@ final class SaveLifecycleTest extends TestCase
             $writer = new RecordingWriter(),
             $this->registry,
             $diagnostics = $this->diagnostics(),
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         );
 
         $outcome = $handler->save(ObjectRef::post($postId), self::GROUP, ['fixture_text' => 'x', 'ghost' => 'y'], 'not-a-nonce', 'stale-hash');
@@ -178,6 +188,9 @@ final class SaveLifecycleTest extends TestCase
             $this->writer,
             $this->registry,
             $this->diagnostics(),
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         );
         $handler->handle($postId, get_post($postId), true);
 
@@ -197,6 +210,9 @@ final class SaveLifecycleTest extends TestCase
             $this->writer,
             $this->registry,
             $this->diagnostics(),
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         );
 
         $handler->handle($postId, get_post($postId), true);
@@ -208,6 +224,89 @@ final class SaveLifecycleTest extends TestCase
         self::assertSame('nonce_failed', $taken->reason);
         self::assertNotNull($taken->reference);
         self::assertNull((new WriteFailureNotice())->take((int) get_current_user_id(), $postId), 'the notice is one-shot');
+
+        // The key is the submitter's, not the post's: another user opening
+        // the same post finds nothing to take.
+        $other = (int) self::factory()->user->create(['role' => 'editor']);
+        self::assertNull((new WriteFailureNotice())->take($other, $postId), 'the notice is the submitter\'s');
+    }
+
+    public function testAGroupNoPanelDeclaresIsRefusedAndTheDeclaredGroupsStillSave(): void
+    {
+        wp_set_current_user((int) self::factory()->user->create(['role' => 'administrator']));
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $postId = $this->postId();
+
+        // Only the first group is declared for this post type; the second
+        // arrives in the same submission.
+        $handler = new FieldSaveHandler(
+            new ArrayRequestInput(
+                body: [Nonces::nonceField() => $this->nonce($postId)],
+                groups: [
+                    self::GROUP => ['fixture_text' => 'kept'],
+                    self::SECOND_GROUP => ['fixture_second_text' => 'refused'],
+                ],
+                hashes: [self::GROUP => MirrorCodec::hash([])],
+            ),
+            $this->writer,
+            $this->registry,
+            $this->diagnostics(),
+            new DeclaredPanels([new FieldPanel('post', $this->group())]),
+            new PostLock(),
+            new WriteFailureNotice(),
+        );
+        $handler->handle($postId, get_post($postId), true);
+
+        self::assertSame('kept', $this->reader->value('fixture_text', ObjectRef::post($postId)), 'the declared groups of the submission still save');
+        self::assertNull($this->reader->value('fixture_second_text', ObjectRef::post($postId)), 'a group no panel declares is never written');
+
+        $taken = (new WriteFailureNotice())->take((int) get_current_user_id(), $postId);
+        self::assertNotNull($taken);
+        self::assertSame(self::SECOND_GROUP, $taken->groupId);
+        self::assertSame('field_shape', $taken->reason);
+    }
+
+    public function testTheFirstRefusalStopsTheSubmission(): void
+    {
+        wp_set_current_user((int) self::factory()->user->create(['role' => 'administrator']));
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->registry->register($this->thirdGroup());
+        $postId = $this->postId();
+
+        // The middle group submits a field id its declaration does not name:
+        // the shape refusal stops the submission, and the third group --
+        // whose save would have succeeded -- is never reached.
+        $handler = new FieldSaveHandler(
+            new ArrayRequestInput(
+                body: [Nonces::nonceField() => $this->nonce($postId)],
+                groups: [
+                    self::GROUP => ['fixture_text' => 'first'],
+                    self::SECOND_GROUP => ['ghost_field' => 'refused'],
+                    self::THIRD_GROUP => ['fixture_third_text' => 'never reached'],
+                ],
+                hashes: [self::GROUP => MirrorCodec::hash([])],
+            ),
+            $this->writer,
+            $this->registry,
+            $this->diagnostics(),
+            new DeclaredPanels([
+                new FieldPanel('post', $this->group()),
+                new FieldPanel('post', $this->secondGroup()),
+                new FieldPanel('post', $this->thirdGroup()),
+            ]),
+            new PostLock(),
+            new WriteFailureNotice(),
+        );
+        $handler->handle($postId, get_post($postId), true);
+
+        self::assertSame('first', $this->reader->value('fixture_text', ObjectRef::post($postId)));
+        self::assertNull($this->reader->value('fixture_third_text', ObjectRef::post($postId)), 'no group writes after a refusal');
+
+        $taken = (new WriteFailureNotice())->take((int) get_current_user_id(), $postId);
+        self::assertNotNull($taken);
+        self::assertSame(self::SECOND_GROUP, $taken->groupId, 'the first refusal is the one the notice carries');
     }
 
     public function testARefusedValueWritesNothingThroughTheRealWriter(): void
@@ -220,6 +319,9 @@ final class SaveLifecycleTest extends TestCase
             $this->writer,
             $this->registry,
             $this->diagnostics(),
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         );
 
         $outcome = $handler->save(ObjectRef::post($postId), self::GROUP, ['fixture_text' => 'x', 'fixture_integer' => 'not-a-number'], $this->nonce($postId), MirrorCodec::hash([]));
@@ -239,6 +341,9 @@ final class SaveLifecycleTest extends TestCase
             $this->writer,
             $this->registry,
             $this->diagnostics(),
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         );
 
         $first = $handler->save(ObjectRef::post($postId), self::GROUP, ['fixture_text' => 'one'], $this->nonce($postId), MirrorCodec::hash([]));
@@ -262,6 +367,9 @@ final class SaveLifecycleTest extends TestCase
             $this->writer,
             $this->registry,
             $diagnostics = $this->diagnostics(),
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         );
 
         $outcome = $handler->save(ObjectRef::post($postId), self::GROUP, ['fixture_text' => 'x'], 'bad', '');
@@ -279,6 +387,25 @@ final class SaveLifecycleTest extends TestCase
             new TextField('fixture_text', StorageTarget::Table),
             new IntegerField('fixture_integer', StorageTarget::Table),
         ]);
+    }
+
+    private function secondGroup(): FieldGroup
+    {
+        return new FieldGroup(self::SECOND_GROUP, ObjectContext::Post, [
+            new TextField('fixture_second_text', StorageTarget::Table),
+        ]);
+    }
+
+    private function thirdGroup(): FieldGroup
+    {
+        return new FieldGroup(self::THIRD_GROUP, ObjectContext::Post, [
+            new TextField('fixture_third_text', StorageTarget::Table),
+        ]);
+    }
+
+    private function panels(): DeclaredPanels
+    {
+        return new DeclaredPanels([new FieldPanel('post', $this->group())]);
     }
 
     private function nonce(int $postId): string
@@ -299,6 +426,9 @@ final class SaveLifecycleTest extends TestCase
             $writer,
             $this->registry,
             $diagnostics,
+            $this->panels(),
+            new PostLock(),
+            new WriteFailureNotice(),
         ), $writer, $diagnostics];
     }
 }

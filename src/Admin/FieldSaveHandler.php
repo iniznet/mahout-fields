@@ -7,8 +7,10 @@ namespace Iniznet\Mahout\Fields\Admin;
 use Iniznet\Mahout\Fields\Capabilities;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter;
+use Iniznet\Mahout\Fields\Contracts\Panels;
 use Iniznet\Mahout\Fields\Contracts\RequestInput;
 use Iniznet\Mahout\Fields\Exception\AuthorizationDenied;
+use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\NonceFailed;
 use Iniznet\Mahout\Fields\Exception\PostLockedForWrite;
 use Iniznet\Mahout\Fields\Internal\PostLock;
@@ -40,8 +42,9 @@ final readonly class FieldSaveHandler
         private FieldWriter $writer,
         private FieldRegistry $registry,
         private Diagnostics $diagnostics,
-        private PostLock $lock = new PostLock(),
-        private WriteFailureNotice $notices = new WriteFailureNotice(),
+        private Panels $panels,
+        private PostLock $lock,
+        private WriteFailureNotice $notices,
     ) {
     }
 
@@ -65,14 +68,46 @@ final readonly class FieldSaveHandler
             return;
         }
 
+        // The panels derive the save entry, and they scope it: a group no
+        // panel of this post type declares is a mass-assignment attempt or a
+        // stale form -- recorded and noticed, never written -- while the
+        // declared groups of the same submission still save.
+        $allowed = [];
+
+        foreach ($this->panels->forPostType($post->post_type) as $panel) {
+            $allowed[$panel->group->id] = true;
+        }
+
         $nonce = $this->request->string(Nonces::nonceField()) ?? '';
         $hashes = $this->request->hashes();
+        $noticed = false;
 
         foreach ($this->request->groups() as $groupId => $values) {
-            $outcome = $this->save(ObjectRef::post($postId), (string) $groupId, $values, $nonce, $hashes[(string) $groupId] ?? '');
+            $groupId = (string) $groupId;
+
+            if (!isset($allowed[$groupId])) {
+                if (!$noticed) {
+                    $this->notices->queue(\get_current_user_id(), $postId, SaveRefusal::record(
+                        InvalidFieldContext::undeclaredForPostType($groupId, $post->post_type),
+                        $groupId,
+                        $postId,
+                        $this->diagnostics,
+                    ));
+                    $noticed = true;
+                }
+
+                continue;
+            }
+
+            $outcome = $this->save(ObjectRef::post($postId), $groupId, $values, $nonce, $hashes[$groupId] ?? '');
 
             if ($outcome->refusal instanceof SaveRefusal) {
-                $this->notices->queue($postId, $outcome->refusal);
+                // The lifecycle refuses loudly and stops: the refused group
+                // wrote nothing, and no later group of the same submission
+                // writes either.
+                $this->notices->queue(\get_current_user_id(), $postId, $outcome->refusal);
+
+                return;
             }
         }
     }
