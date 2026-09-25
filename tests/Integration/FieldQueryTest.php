@@ -131,6 +131,43 @@ final class FieldQueryTest extends TestCase
         }
     }
 
+    public function testAMemberQualifiedLeafQueryFindsThePostsThatCarryIt(): void
+    {
+        $this->registry->register(new FieldGroup('fixture_repeater_group', ObjectContext::Post, [
+            new RepeaterField('fixture_credits', StorageTarget::Table, new TextField('fixture_role', StorageTarget::Carried)),
+        ]));
+
+        $alpha = (int) self::factory()->post->create();
+        $beta = (int) self::factory()->post->create();
+        $this->writer->setItems('fixture_credits', ObjectRef::post($alpha), ['author']);
+        $this->writer->setItems('fixture_credits', ObjectRef::post($beta), ['editor']);
+
+        $ids = $this->query()->postIds('fixture_credits.fixture_role', Operator::Equals, 'author', 10);
+
+        self::assertSame([$alpha], $ids, 'the query_path index answers the member-qualified scan.');
+        self::assertSame(1, $this->query()->count('fixture_credits.fixture_role', Operator::Equals, 'author'));
+    }
+
+    public function testABareRepeaterIdIsRefusedMemberQualified(): void
+    {
+        $this->registry->register(new FieldGroup('fixture_repeater_group', ObjectContext::Post, [
+            new RepeaterField('fixture_credits', StorageTarget::Table, new TextField('fixture_role', StorageTarget::Carried)),
+        ]));
+
+        $this->expectException(InvalidFieldDefinition::class);
+        $this->query()->postIds('fixture_credits', Operator::Equals, 'x', 5);
+    }
+
+    public function testAnUnknownMemberIsRefused(): void
+    {
+        $this->registry->register(new FieldGroup('fixture_repeater_group', ObjectContext::Post, [
+            new RepeaterField('fixture_credits', StorageTarget::Table, new TextField('fixture_role', StorageTarget::Carried)),
+        ]));
+
+        $this->expectException(InvalidFieldDefinition::class);
+        $this->query()->postIds('fixture_credits.nope', Operator::Equals, 'x', 5);
+    }
+
     public function testARepeaterHasNoValueColumnToCompare(): void
     {
         $this->registry->register(new FieldGroup('fixture_repeater_group', ObjectContext::Post, [
@@ -174,7 +211,7 @@ final class FieldQueryTest extends TestCase
 
     private function query(): FieldQuery
     {
-        return new FieldQuery($this->registry, $this->recording, $this->valuesTable);
+        return new FieldQuery($this->registry, $this->recording, $this->valuesTable, $this->leavesTable);
     }
 
     private function group(): FieldGroup

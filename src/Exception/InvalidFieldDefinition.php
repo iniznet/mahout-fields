@@ -58,7 +58,17 @@ final class InvalidFieldDefinition extends \LogicException implements MahoutExce
 
     public static function noValueColumn(string $fieldId): self
     {
-        return new self(sprintf('Field "%s" has no value column; a repeater is queried through its items, not the value table.', $fieldId), $fieldId, 'value-column');
+        return new self(sprintf('Field "%s" has no value column; a repeater is queried through its members, member-qualified.', $fieldId), $fieldId, 'value-column');
+    }
+
+    public static function repeaterNeedsMember(string $fieldId): self
+    {
+        return new self(sprintf('Repeater "%s" is queried bare; a repeater leaf is queried member-qualified, as "%s.member".', $fieldId, $fieldId), $fieldId, 'query');
+    }
+
+    public static function unknownMember(string $fieldId, string $memberId): self
+    {
+        return new self(sprintf('Repeater "%s" declares no member "%s" to query.', $fieldId, $memberId), $fieldId, 'query');
     }
 
     public function fieldId(): string

@@ -30,6 +30,7 @@ final readonly class FieldQuery implements FieldQueryContract
         private FieldRegistry $registry,
         private SqlConnection $connection,
         private Table $values,
+        private Table $leaves,
     ) {
     }
 
@@ -42,6 +43,10 @@ final readonly class FieldQuery implements FieldQueryContract
     {
         if ($limit < 1) {
             throw UnboundedStatement::forLimit($this->values->name->value, $limit);
+        }
+
+        if ($this->isMemberQualified($fieldId)) {
+            return $this->leafIds($fieldId, $operator, $value, $limit);
         }
 
         [$column, $placeholder, $comparand] = $this->binding($fieldId, $value);
@@ -65,6 +70,25 @@ final readonly class FieldQuery implements FieldQueryContract
     #[\Override]
     public function count(string $fieldId, Operator $operator, string|int|float|bool|null $value): int
     {
+        if ($this->isMemberQualified($fieldId)) {
+            [$root, $member, $column, $placeholder, $comparand] = $this->leafBinding($fieldId, $value);
+
+            $statement = \sprintf(
+                'SELECT COUNT(*) AS aggregate FROM %s WHERE %s = %%d AND %s = %%s AND %s = %%s AND %s %s %s',
+                $this->leaves->name->value,
+                FieldLeavesTable::objectKindColumn(),
+                FieldLeavesTable::groupIdColumn(),
+                FieldLeavesTable::memberColumn(),
+                $column,
+                $operator->comparison(),
+                $placeholder,
+            );
+
+            $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $root, $member, $comparand);
+
+            return (int) ($rows[0][self::AGGREGATE] ?? 0);
+        }
+
         [$column, $placeholder, $comparand] = $this->binding($fieldId, $value);
 
         $statement = \sprintf(
@@ -87,6 +111,26 @@ final readonly class FieldQuery implements FieldQueryContract
     {
         if ($limit < 1) {
             throw UnboundedStatement::forLimit($this->values->name->value, $limit);
+        }
+
+        if ($this->isMemberQualified($fieldId)) {
+            [$root, $member, $column, $placeholder, $comparand] = $this->leafBinding($fieldId, null);
+
+            $statement = \sprintf(
+                'SELECT %s FROM %s WHERE %s = %%d AND %s = %%s AND %s = %%s AND %s IS NOT NULL ORDER BY %s %s LIMIT %%d',
+                FieldLeavesTable::objectIdColumn(),
+                $this->leaves->name->value,
+                FieldLeavesTable::objectKindColumn(),
+                FieldLeavesTable::groupIdColumn(),
+                FieldLeavesTable::memberColumn(),
+                $column,
+                $column,
+                $direction->clause(),
+            );
+
+            $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $root, $member, $limit);
+
+            return \array_map(static fn (array $row): int => (int) $row[FieldLeavesTable::objectIdColumn()], $rows);
         }
 
         $column = $this->valueColumn($fieldId);
@@ -131,6 +175,127 @@ final readonly class FieldQuery implements FieldQueryContract
         }
 
         return [$column, '%s', (string) $comparand];
+    }
+
+    /**
+     * The member-qualified leaf query: post ids whose repeater carries at
+     * least one leaf of the named member matching the comparison. The
+     * query_path index — group, member, text prefix — serves the scan; a
+     * queried repeater is the developer's declared choice, at the cost the
+     * contract states.
+     *
+     * @return list<int>
+     */
+    private function leafIds(string $fieldId, Operator $operator, string|int|float|bool|null $value, int $limit): array
+    {
+        [$root, $member, $column, $placeholder, $comparand] = $this->leafBinding($fieldId, $value);
+
+        $statement = \sprintf(
+            'SELECT %s FROM %s WHERE %s = %%d AND %s = %%s AND %s = %%s AND %s %s %s LIMIT %%d',
+            FieldLeavesTable::objectIdColumn(),
+            $this->leaves->name->value,
+            FieldLeavesTable::objectKindColumn(),
+            FieldLeavesTable::groupIdColumn(),
+            FieldLeavesTable::memberColumn(),
+            $column,
+            $operator->comparison(),
+            $placeholder,
+        );
+
+        $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $root, $member, $comparand, $limit);
+
+        $ids = [];
+
+        foreach ($rows as $row) {
+            $id = (int) $row[FieldLeavesTable::objectIdColumn()];
+
+            if (!\in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * The qualified id's parts: the root repeater and the queried member,
+     * resolved against the declaration — the member must be a declared
+     * scalar leaf of the subtree, and the root must bind the leaves table.
+     *
+     * @return array{0: string, 1: string, 2: string, 3: string, 4: string|int}
+     */
+    private function leafBinding(string $qualified, string|int|float|bool|null $value): array
+    {
+        [$root, $memberId] = explode('.', $qualified, 2);
+
+        $registration = $this->registry->resolve($root);
+        $field = $registration->field;
+
+        if (!$field instanceof RepeaterField) {
+            throw InvalidFieldDefinition::unknownMember($root, $memberId);
+        }
+
+        if (StorageTarget::Table !== $registration->storage) {
+            throw InvalidStorageCombination::queryAgainstMeta($root);
+        }
+
+        $member = $this->memberNamed($field, $memberId);
+
+        if (null === $member) {
+            throw InvalidFieldDefinition::unknownMember($root, $memberId);
+        }
+
+        $column = FieldLeavesTable::columnFor($member->type());
+
+        if (null === $column) {
+            throw InvalidFieldDefinition::unknownMember($root, $memberId);
+        }
+
+        $comparand = match (true) {
+            \is_bool($value) => $value ? 1 : 0,
+            \is_float($value) => \number_format($value, 6, '.', ''),
+            default => $value ?? '',
+        };
+
+        // A scalar-item repeater stores its leaves with an empty member: the
+        // item field is the leaf, and no member name is stored beside it.
+        $stored = $field->item instanceof Field && $field->item->id === $member->id ? '' : $memberId;
+
+        if (FieldLeavesTable::intColumn() === $column) {
+            return [$root, $stored, $column, '%d', (int) $comparand];
+        }
+
+        return [$root, $stored, $column, '%s', (string) $comparand];
+    }
+
+    /**
+     * The declared scalar member one qualified id names, anywhere in the
+     * subtree, or null when the id names nothing — the caller refuses.
+     */
+    private function memberNamed(RepeaterField $root, string $memberId): ?Field
+    {
+        foreach ($root->members() as $member) {
+            if (!$member instanceof RepeaterField) {
+                if ($member->id === $memberId) {
+                    return $member;
+                }
+
+                continue;
+            }
+
+            $nested = $this->memberNamed($member, $memberId);
+
+            if (null !== $nested) {
+                return $nested;
+            }
+        }
+
+        return null;
+    }
+
+    private function isMemberQualified(string $fieldId): bool
+    {
+        return str_contains($fieldId, '.');
     }
 
     private function valueColumn(string $fieldId): string
