@@ -29,7 +29,7 @@ final readonly class FieldStyles
      * the stylesheet changes, so a deployed update is picked up without a
      * per-request stat call.
      */
-    public const string VERSION = '1.1.0';
+    public const string VERSION = '1.2.0';
 
     /**
      * The stylesheet's path inside a host's vendor directory, named as the

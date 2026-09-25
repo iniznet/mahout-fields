@@ -94,3 +94,56 @@
 .mahout-fields-items--rows { display: flex; flex-direction: column; gap: 6px; }
 .mahout-fields-item--row { display: flex; gap: 8px; align-items: flex-start; }
 .mahout-fields-item--row > * { flex: 1 1 auto; }
+
+/*
+ * The option screen's page shell: a boxed container on core's surface
+ * colour, sections as blocks within it. The host that took styling over
+ * through Contracts\FieldUiPolicy owns the page's look instead; the layout
+ * itself -- which nav column, which form -- stays the markup's.
+ */
+
+.mahout-fields-page__body {
+	margin-top: 12px;
+	padding: 4px 16px 16px;
+	background: var(--wp--preset--color--white, #fff);
+	border: 1px solid var(--wp--preset--color--interface-border, #c3c4c7);
+	border-radius: 4px;
+}
+
+.mahout-fields-page__grid {
+	display: grid;
+	grid-template-columns: 180px minmax(0, 1fr);
+	gap: 16px;
+}
+
+.mahout-fields-page__nav {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: 0 -16px 0 0;
+	padding: 12px 12px 12px 0;
+	border-right: 1px solid var(--wp--preset--color--interface-border, #dcdcde);
+}
+
+.mahout-fields-page__nav-link {
+	padding: 6px 10px;
+	text-decoration: none;
+	border-radius: 2px;
+}
+
+.mahout-fields-page__nav-link[aria-current] {
+	background: var(--wp--preset--color--interface-bg, #f0f0f1);
+	font-weight: 600;
+}
+
+.mahout-fields-page__section {
+	padding: 12px 0;
+}
+
+.mahout-fields-page__section + .mahout-fields-page__section {
+	border-top: 1px solid var(--wp--preset--color--interface-border, #dcdcde);
+}
+
+.mahout-fields-page__section h2 {
+	margin: 0 0 12px;
+}

@@ -124,6 +124,24 @@ final class InvalidPanelDeclaration extends \InvalidArgumentException implements
         );
     }
 
+    /** A top-level menu registers no icon: the admin bar renders a broken image instead. */
+    public static function emptyMenuIcon(string $identifier): self
+    {
+        return new self(
+            sprintf('The option screen "%s" registers a top-level menu with no icon; a top-level menu declares its own icon.', $identifier),
+            $identifier,
+        );
+    }
+
+    /** A top-level screen declares no parent: the two menu placements are one declaration's facts, never mixed. */
+    public static function topLevelWithParent(string $identifier, string $parent): self
+    {
+        return new self(
+            sprintf('The option screen "%s" registers a top-level menu and names the parent "%s"; a top-level screen declares no parent.', $identifier, $parent),
+            $identifier,
+        );
+    }
+
     public function groupId(): string
     {
         return $this->groupId;

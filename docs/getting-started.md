@@ -208,6 +208,25 @@ a screen; a tab has a label (it is the tab's key in the URL) and at least one
 section; a content section's markup file is part of the codebase and must
 exist; every group on the page, declared or inside a tab, is option-context.
 
+The page's placement and its reading layout are the declaration's own facts
+too. A screen sits on the parent menu it names -- `menuParent` defaults to the
+Settings menu -- or registers its own top-level menu, which names its icon and
+no parent:
+
+```php
+new OptionScreen(
+    // ...
+    menuParent: '',          // a top-level screen declares no parent
+    topLevel: true,
+    menuIcon: 'dashicons-layout',
+    layout: OptionScreenLayout::Sidebar, // a nav column; Tabs is the default bar
+);
+```
+
+The layout is structural: core's nav-tab bar across the top, or a navigation
+column beside the content. The shipped stylesheet styles the page shell and
+both layouts; a host that took styling over owns the look instead.
+
 A screen whose tabs carry no field group at all renders no form -- no nonce,
 no save button, no save entry: a documentation or guide page is a screen like
 any other, and nothing can be submitted to it. A tabbed screen saves exactly

@@ -64,6 +64,9 @@ final readonly class OptionScreen
         public string $menuParent = 'options-general.php',
         public string $description = '',
         array $tabs = [],
+        public OptionScreenLayout $layout = OptionScreenLayout::Tabs,
+        public bool $topLevel = false,
+        public string $menuIcon = '',
     ) {
         $identifier = null === $group ? $pageSlug : $group->id;
 
@@ -83,8 +86,16 @@ final readonly class OptionScreen
             throw InvalidPanelDeclaration::emptyCapability($identifier);
         }
 
-        if ('' === $menuParent) {
+        if (!$this->topLevel && '' === $menuParent) {
             throw InvalidPanelDeclaration::emptyMenuParent($identifier);
+        }
+
+        if ($this->topLevel && '' === $menuIcon) {
+            throw InvalidPanelDeclaration::emptyMenuIcon($identifier);
+        }
+
+        if ($this->topLevel && '' !== $menuParent) {
+            throw InvalidPanelDeclaration::topLevelWithParent($identifier, $menuParent);
         }
 
         if (null !== $group && [] !== $tabs) {

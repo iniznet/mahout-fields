@@ -19,6 +19,7 @@ use Iniznet\Mahout\Fields\MirrorCodec;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectRef;
 use Iniznet\Mahout\Fields\OptionScreen;
+use Iniznet\Mahout\Fields\OptionScreenLayout;
 use Iniznet\Mahout\Fields\OptionSection;
 use Iniznet\Mahout\Fields\OptionTab;
 use Iniznet\Mahout\Fields\StorageTarget;
@@ -192,6 +193,111 @@ final class OptionScreenTabsTest extends TestCase
         self::assertStringContainsString('<h2>Fixture group</h2>', $markup, 'a titled section renders its heading');
         self::assertStringContainsString('<p class="description">Fixture options intro.</p>', $markup, 'the page\'s own intro renders');
         self::assertStringContainsString('type="hidden" name="'.OptionScreenManager::TAB_PARAM.'" value="'.self::FIELDS_TAB.'"', $markup, 'the form carries the active tab back');
+    }
+
+    public function testATopLevelScreenDeclaresItsOwnMenuAndNoParent(): void
+    {
+        try {
+            new OptionScreen(self::SLUG, 'Fixture options', 'Fixture fields', null, 'manage_options', topLevel: true, tabs: [
+                new OptionTab(self::GUIDE_TAB, [OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php')]),
+            ]);
+            self::fail('a top-level menu declares its own icon');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('no icon', $refusal->getMessage());
+        }
+
+        try {
+            new OptionScreen(self::SLUG, 'Fixture options', 'Fixture fields', null, 'manage_options', menuParent: 'admin.php', topLevel: true, menuIcon: 'dashicons-admin-generic', tabs: [
+                new OptionTab(self::GUIDE_TAB, [OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php')]),
+            ]);
+            self::fail('a top-level screen declares no parent');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('declares no parent', $refusal->getMessage());
+        }
+    }
+
+    public function testATopLevelScreenRegistersItsOwnMenuEntry(): void
+    {
+        $docs = new OptionScreen(
+            'fixture_docs',
+            'Fixture docs',
+            'Fixture docs',
+            null,
+            'manage_options',
+            menuParent: '',
+            topLevel: true,
+            menuIcon: 'dashicons-admin-generic',
+            tabs: [new OptionTab(self::GUIDE_TAB, [
+                OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php'),
+            ])],
+        );
+
+        $this->registry->register($this->group());
+        $this->signInAsAdministrator();
+        (new FieldsUiProvider())->boot($this->container(
+            new ArrayRequestInput(),
+            [$docs],
+        ));
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+
+        $topLevel = array_column((array) ($GLOBALS['menu'] ?? []), 2);
+        self::assertContains('fixture_docs', $topLevel, 'a top-level screen registers itself, not a submenu entry');
+        self::assertFalse(\has_action(Hooks::screenLoad(\get_plugin_page_hookname('fixture_docs', ''))), 'a documentation page carries no save entry wherever it sits');
+    }
+
+    public function testASidebarScreenRendersItsNavigationColumn(): void
+    {
+        $screen = new OptionScreen(
+            self::SLUG,
+            'Fixture options',
+            'Fixture fields',
+            null,
+            'manage_options',
+            tabs: [
+                new OptionTab(self::FIELDS_TAB, [
+                    OptionSection::fields('Fixture group', $this->group()),
+                ]),
+                new OptionTab(self::GUIDE_TAB, [
+                    OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php'),
+                ]),
+            ],
+            layout: OptionScreenLayout::Sidebar,
+        );
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->signInAsAdministrator();
+        (new FieldsUiProvider())->boot($this->container(
+            new ArrayRequestInput(params: ['tab' => self::GUIDE_TAB]),
+            [$screen],
+        ));
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+
+        \ob_start();
+        \do_action(\get_plugin_page_hookname(self::SLUG, 'options-general.php'));
+        $markup = (string) \ob_get_clean();
+
+        self::assertStringContainsString('mahout-fields-page__grid', $markup, 'the sidebar layout is a two-column grid');
+        self::assertStringContainsString('mahout-fields-page__nav-link', $markup, 'the tabs navigate as a column');
+        self::assertStringContainsString('aria-current="true"', $markup, 'the active tab is marked');
+        self::assertStringNotContainsString('nav-tab-wrapper', $markup, 'the declared layout is the one the page renders');
+    }
+
+    public function testThePageRendersItsContainer(): void
+    {
+        $this->bootScreen(params: ['tab' => self::FIELDS_TAB]);
+
+        \ob_start();
+        \do_action(\get_plugin_page_hookname(self::SLUG, 'options-general.php'));
+        $markup = (string) \ob_get_clean();
+
+        self::assertStringContainsString('mahout-fields-page__body', $markup, 'the page\'s content sits in its own container');
+        self::assertStringContainsString('mahout-fields-page__section', $markup, 'each section is one block');
     }
 
     public function testTheSaveWritesEveryGroupOfTheActiveTab(): void

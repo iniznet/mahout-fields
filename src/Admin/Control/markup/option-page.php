@@ -1,30 +1,51 @@
 <?php
 /** @var array{screen: Iniznet\Mahout\Fields\OptionScreen, tab: Iniznet\Mahout\Fields\OptionTab, sections: list<array{title: string, markup: string}>, action: string, hasFields: bool, tabParam: string} $view */
 ?>
-<div class="wrap">
+<div class="wrap mahout-fields-page">
 	<h1><?php echo esc_html($view['screen']->pageTitle); ?></h1>
 <?php if ('' !== $view['screen']->description) { ?>
 	<p class="description"><?php echo esc_html($view['screen']->description); ?></p>
 <?php } ?>
 <?php if (count($view['screen']->tabs) > 1) { ?>
+<?php if (Iniznet\Mahout\Fields\OptionScreenLayout::Sidebar === $view['screen']->layout) { ?>
+	<div class="mahout-fields-page__body mahout-fields-page__grid">
+		<nav class="mahout-fields-page__nav" aria-label="<?php echo esc_attr($view['screen']->pageTitle); ?>">
+<?php foreach ($view['screen']->tabs as $tab) { ?>
+			<a href="<?php echo esc_url($view['action'].'&'.$view['tabParam'].'='.rawurlencode($tab->label)); ?>" class="mahout-fields-page__nav-link"<?php echo $tab->label === $view['tab']->label ? ' aria-current="true"' : ''; ?>><?php echo esc_html($tab->label); ?></a>
+<?php } ?>
+		</nav>
+		<div class="mahout-fields-page__content">
+<?php } else { ?>
 	<nav class="nav-tab-wrapper">
 <?php foreach ($view['screen']->tabs as $tab) { ?>
 		<a href="<?php echo esc_url($view['action'].'&'.$view['tabParam'].'='.rawurlencode($tab->label)); ?>" class="nav-tab<?php echo $tab->label === $view['tab']->label ? ' nav-tab-active' : ''; ?>"><?php echo esc_html($tab->label); ?></a>
 <?php } ?>
 	</nav>
+	<div class="mahout-fields-page__body">
+<?php } ?>
+<?php } else { ?>
+	<div class="mahout-fields-page__body">
 <?php } ?>
 <?php if ($view['hasFields']) { ?>
-	<form method="post" action="<?php echo esc_url($view['action']); ?>">
-		<input type="hidden" name="<?php echo esc_attr($view['tabParam']); ?>" value="<?php echo esc_attr($view['tab']->label); ?>">
+		<form method="post" action="<?php echo esc_url($view['action']); ?>">
+			<input type="hidden" name="<?php echo esc_attr($view['tabParam']); ?>" value="<?php echo esc_attr($view['tab']->label); ?>">
 <?php } ?>
 <?php foreach ($view['sections'] as $section) { ?>
+			<div class="mahout-fields-page__section">
 <?php if ('' !== $section['title']) { ?>
-	<h2><?php echo esc_html($section['title']); ?></h2>
+				<h2><?php echo esc_html($section['title']); ?></h2>
 <?php } ?>
-<?php echo $section['markup']; // each part's own markup, escaped at its own outputs?>
+<?php echo $section['markup']; // each part's own markup, escaped at its own outputs ?>
+			</div>
 <?php } ?>
 <?php if ($view['hasFields']) { ?>
 <?php submit_button(__('Save fields', 'mahout-fields')); ?>
-	</form>
+		</form>
+<?php } ?>
+<?php if (1 < count($view['screen']->tabs) && Iniznet\Mahout\Fields\OptionScreenLayout::Sidebar === $view['screen']->layout) { ?>
+		</div>
+	</div>
+<?php } else { ?>
+	</div>
 <?php } ?>
 </div>

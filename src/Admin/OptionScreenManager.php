@@ -93,16 +93,29 @@ final readonly class OptionScreenManager
                 continue;
             }
 
-            $pageHook = \add_submenu_page(
-                $screen->menuParent,
-                $screen->pageTitle,
-                $screen->menuTitle,
-                $screen->capability,
-                $screen->pageSlug,
-                function () use ($screen): void {
-                    $this->render($screen);
-                },
-            );
+            // The placement is the declaration's own fact: a top-level menu
+            // registers itself, a submenu screen sits on the parent it names.
+            $pageHook = $screen->topLevel
+                ? \add_menu_page(
+                    $screen->pageTitle,
+                    $screen->menuTitle,
+                    $screen->capability,
+                    $screen->pageSlug,
+                    function () use ($screen): void {
+                        $this->render($screen);
+                    },
+                    $screen->menuIcon,
+                )
+                : \add_submenu_page(
+                    $screen->menuParent,
+                    $screen->pageTitle,
+                    $screen->menuTitle,
+                    $screen->capability,
+                    $screen->pageSlug,
+                    function () use ($screen): void {
+                        $this->render($screen);
+                    },
+                );
 
             if (!\is_string($pageHook) || '' === $pageHook) {
                 continue;
