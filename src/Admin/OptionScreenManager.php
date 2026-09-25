@@ -144,39 +144,51 @@ final readonly class OptionScreenManager
     }
 
     /**
-     * The page's render callback. The nonce field is built here -- it is
-     * request work, and the editor deliberately performs none -- and the
-     * active tab's first field section's props carry it, so the form holds
-     * exactly one nonce however many field sections the tab renders.
+     * The page's render callback. Every tab's sections render, the inactive
+     * tab's panel hidden: the page is one load, and the shipped script swaps
+     * the visible panel without a request. The nonce field is built here --
+     * it is request work, and the editor deliberately performs none -- and
+     * the page's first field section's props carry it, so the form holds
+     * exactly one nonce however many field sections the page renders.
      */
     private function render(OptionScreen $screen): void
     {
-        $tab = $this->activeTab($screen);
+        $active = $this->activeTab($screen);
 
         $nonce = '';
-        $sections = [];
+        $panels = [];
 
-        foreach ($tab->sections as $section) {
-            $markup = '';
+        foreach ($screen->tabs as $tab) {
+            $sections = [];
 
-            if (null !== $section->group) {
-                if ('' === $nonce) {
-                    $nonce = \wp_nonce_field(Nonces::screenAction($screen->pageSlug), Nonces::nonceField(), true, false);
+            foreach ($tab->sections as $section) {
+                $markup = '';
+
+                if (null !== $section->group) {
+                    if ('' === $nonce) {
+                        $nonce = \wp_nonce_field(Nonces::screenAction($screen->pageSlug), Nonces::nonceField(), true, false);
+                    }
+
+                    $markup = $this->editor->render($this->editor->propsForGroup($section->group->id, $nonce));
+                } else {
+                    $markup = self::contentMarkup($section->markupPath ?? '');
                 }
 
-                $markup = $this->editor->render($this->editor->propsForGroup($section->group->id, $nonce));
-            } else {
-                $markup = self::contentMarkup($section->markupPath ?? '');
+                $sections[] = ['title' => $section->title, 'markup' => $markup];
             }
 
-            $sections[] = ['title' => $section->title, 'markup' => $markup];
+            $panels[] = [
+                'label' => $tab->label,
+                'hidden' => $tab->label !== $active->label,
+                'sections' => $sections,
+            ];
         }
 
         \ob_start();
         $view = [
             'screen' => $screen,
-            'tab' => $tab,
-            'sections' => $sections,
+            'active' => $active,
+            'panels' => $panels,
             'action' => \admin_url($screen->menuParent.'?page='.rawurlencode($screen->pageSlug)),
             'hasFields' => '' !== $nonce,
             'tabParam' => self::TAB_PARAM,

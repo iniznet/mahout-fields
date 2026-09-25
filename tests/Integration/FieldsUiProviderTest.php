@@ -303,7 +303,7 @@ final class FieldsUiProviderTest extends TestCase
     public function testTheDefaultStylesheetIsEnqueuedOnADeclaredPanelsEditScreen(): void
     {
         $container = $this->container(new DeclaredPanels([new FieldPanel('post', $this->group())]));
-        $container->set(new FieldStyles('http://example.org/vendor/mahout-fields/resources/fields.css', $container->get(Panels::class)), id: FieldStyles::class);
+        $container->set(new FieldStyles(url: 'http://example.org/vendor/mahout-fields/resources/fields.css', panels: $container->get(Panels::class)), id: FieldStyles::class);
 
         $this->clearUiHooks();
         (new FieldsUiProvider())->boot($container);
@@ -315,6 +315,7 @@ final class FieldsUiProviderTest extends TestCase
 
         self::assertTrue(\wp_style_is(FieldStyles::HANDLE, 'registered'), 'the handle exists only where field UI renders');
         self::assertTrue(\wp_style_is(FieldStyles::HANDLE, 'enqueued'));
+        self::assertFalse(\wp_script_is(FieldStyles::SCRIPT_HANDLE, 'enqueued'), 'a metabox renders no tabs: the script is an option screen\'s asset alone');
 
         \wp_dequeue_style(FieldStyles::HANDLE);
         \wp_deregister_style(FieldStyles::HANDLE);

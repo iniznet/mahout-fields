@@ -104,7 +104,7 @@
 
 .mahout-fields-page__body {
 	margin-top: 12px;
-	padding: 4px 16px 16px;
+	padding: 8px 16px;
 	background: var(--wp--preset--color--white, #fff);
 	border: 1px solid var(--wp--preset--color--interface-border, #c3c4c7);
 	border-radius: 4px;
@@ -137,7 +137,7 @@
 }
 
 .mahout-fields-page__section {
-	padding: 12px 0;
+	padding: 12px 0 16px;
 }
 
 .mahout-fields-page__section + .mahout-fields-page__section {
@@ -145,5 +145,11 @@
 }
 
 .mahout-fields-page__section h2 {
-	margin: 0 0 12px;
+	margin: 0 0 16px;
+}
+
+/* The form's own submit block: core's wide margins fight the shell's rhythm. */
+
+.mahout-fields-page__body .submit {
+	margin: 4px 0 0;
 }

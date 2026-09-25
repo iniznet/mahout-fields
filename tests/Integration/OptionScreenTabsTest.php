@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Tests\Integration;
 
+use Iniznet\Mahout\Fields\Admin\FieldStyles;
 use Iniznet\Mahout\Fields\Admin\FieldsUiProvider;
 use Iniznet\Mahout\Fields\Admin\Nonces;
 use Iniznet\Mahout\Fields\Admin\OptionScreenManager;
@@ -141,7 +142,8 @@ final class OptionScreenTabsTest extends TestCase
         self::assertStringContainsString('nav-tab-wrapper', $markup, 'two tabs render core\'s own tab bar');
         self::assertStringContainsString('nav-tab-active', $markup, 'the active tab is marked');
         self::assertStringContainsString('Fixture guide markup', $markup, 'the active tab\'s content section renders');
-        self::assertStringNotContainsString('name="fixture_text"', $markup, 'the inactive tab\'s fields do not render');
+        self::assertStringContainsString('data-mahout-panel="'.self::FIELDS_TAB.'" hidden', $markup, 'the inactive tab\'s panel renders hidden: one page load, the script swaps the visible panel');
+        self::assertStringNotContainsString('data-mahout-panel="'.self::GUIDE_TAB.'" hidden', $markup, 'the active tab\'s panel is visible');
     }
 
     public function testAContentOnlyScreenRendersNoFormAndGetsNoSaveEntry(): void
@@ -193,6 +195,41 @@ final class OptionScreenTabsTest extends TestCase
         self::assertStringContainsString('<h2>Fixture group</h2>', $markup, 'a titled section renders its heading');
         self::assertStringContainsString('<p class="description">Fixture options intro.</p>', $markup, 'the page\'s own intro renders');
         self::assertStringContainsString('type="hidden" name="'.OptionScreenManager::TAB_PARAM.'" value="'.self::FIELDS_TAB.'"', $markup, 'the form carries the active tab back');
+    }
+
+    public function testTheTabSwitchingScriptIsEnqueuedOnTheDeclaredScreen(): void
+    {
+        // This suite runs with no active theme, so the default asset
+        // resolution refuses here by design: the URLs are bound, the way a
+        // host that owns its mapping binds them.
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->signInAsAdministrator();
+
+        $container = $this->container(new ArrayRequestInput(), [$this->tabbedScreen()]);
+        $container->set(new FieldStyles(
+            url: 'http://example.org/fields.css',
+            scriptUrl: 'http://example.org/fields.js',
+            screens: new DeclaredOptionScreens([$this->tabbedScreen()]),
+        ), id: FieldStyles::class);
+
+        (new FieldsUiProvider())->boot($container);
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+
+        \set_current_screen('settings_page_'.self::SLUG);
+        \do_action(Hooks::ADMIN_ENQUEUE_SCRIPTS, \get_plugin_page_hookname(self::SLUG, 'options-general.php'));
+
+        self::assertTrue(\wp_style_is(FieldStyles::HANDLE, 'enqueued'), 'the shell ships its stylesheet');
+        self::assertTrue(\wp_script_is(FieldStyles::SCRIPT_HANDLE, 'enqueued'), 'the tabs switch without a request: the script ships with the page');
+
+        \wp_dequeue_style(FieldStyles::HANDLE);
+        \wp_deregister_style(FieldStyles::HANDLE);
+        \wp_dequeue_script(FieldStyles::SCRIPT_HANDLE);
+        \wp_deregister_script(FieldStyles::SCRIPT_HANDLE);
+        \set_current_screen('front');
     }
 
     public function testATopLevelScreenDeclaresItsOwnMenuAndNoParent(): void
