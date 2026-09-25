@@ -15,9 +15,9 @@ use Iniznet\Mahout\Fields\RepeaterLayout;
 final readonly class FieldControlProps
 {
     /**
-     * @param list<string>                     $options the choice field's closed set
-     * @param list<string|int|float|bool|null> $items   the repeater's stored items, in position order
-     * @param list<list<MemberControl>>        $rows    the repeater's items, each rendered as its members' controls
+     * @param list<string>                                                $options the choice field's closed set
+     * @param list<string|int|float|bool|null>|list<array<string, mixed>> $items   the repeater's stored items, in position order
+     * @param list<list<MemberControl>>                                   $rows    the repeater's items, each rendered as its members' controls
      */
     public function __construct(
         public string $fieldId,

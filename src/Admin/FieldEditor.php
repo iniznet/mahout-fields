@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Admin;
 
+use Iniznet\Mahout\Fields\Admin\Control\RepeaterControl;
 use Iniznet\Mahout\Fields\ChoiceField;
 use Iniznet\Mahout\Fields\Contracts\ControlRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldControl as FieldControlContract;
@@ -123,7 +124,7 @@ final readonly class FieldEditor implements FieldEditorContract
      * member; a nested repeater member recurses, its input name carrying the
      * position chain the writer's address grammar reads back.
      *
-     * @param list<mixed>           $items
+     * @param array<mixed, mixed>   $items
      * @param array<string, string> $errors
      *
      * @return list<list<MemberControl>>
@@ -185,7 +186,8 @@ final readonly class FieldEditor implements FieldEditorContract
     }
 
     /**
-     * @param array<string, mixed> $items
+     * @param list<mixed>|array<mixed, mixed> $items
+     * @param array<string, string>           $errors
      */
     private function repeaterMember(RepeaterField $field, string $nameBase, string $idBase, array $items, array $errors): MemberControl
     {
@@ -206,6 +208,9 @@ final readonly class FieldEditor implements FieldEditorContract
         );
     }
 
+    /**
+     * @param array<string, string> $errors
+     */
     private function memberControl(Field $member, string $inputName, string $inputId, string|int|float|bool|null $value, array $errors): MemberControl
     {
         $props = new FieldControlProps(
