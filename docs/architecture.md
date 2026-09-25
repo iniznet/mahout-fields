@@ -44,10 +44,11 @@ container.
   repeater whose item type has no generic column is refused on the table
   target, and an id answers to exactly one field.
 - **Storage.** `Internal\\MetaStorage` for the load-with-the-entity store,
-  `Internal\\TableStorage` for the two typed tables, `RepeaterCodec` for the
-  versioned envelope. The table adapters' every statement goes through
-  mahout-db's `TableGateway` with a primary-key equality; the item write is
-  one transaction.
+  `Internal\\TableStorage` for the two typed tables. A repeater stores no
+  envelope: every leaf is one scalar at its address — the chain of positions
+  and member ids from the root — on either target. The table adapters' every
+  statement goes through mahout-db's `TableGateway` with a primary-key
+  equality; a repeater's write is one transaction.
 
 ## What the package does not do
 

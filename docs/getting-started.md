@@ -87,9 +87,46 @@ $isbn = $reader->value('isbn', ObjectRef::post($postId));
 $writer->set('season_count', ObjectRef::post($postId), 4);
 ```
 
-A `Meta` repeater stores the versioned payload; `items()` reads it back in
-declared order. A `Table` repeater stores one row per item at an explicit
-position.
+Absence is `null`: an empty field reads null, and a default is the
+consumer's decision. The storage target is invisible at the call site — the
+same call reads either target, so moving a field is one word plus a
+migration.
+
+## Read a repeater
+
+A repeater reads through `items()` — the declared shape, assembled from the
+storage leaves: a scalar item reads as a list, a composite item as
+member-keyed records, a nested repeater as a list inside its record.
+
+```php
+$credits = $reader->items('credits', ObjectRef::post($postId));
+// [['role' => 'author', 'name' => 'Ursula K. Le Guin'], …]
+```
+
+## Query your fields
+
+Only `Table` storage is queryable — that is what the storage target decides.
+The query builder is bound under `Contracts\FieldQuery` and answers in post
+ids, never rows:
+
+```php
+use Iniznet\Mahout\Fields\{Operator, OrderDirection};
+
+$ids = $query->postIds('isbn', Operator::Equals, '978-0-241-26858-2', 50);
+$n   = $query->count('rating', Operator::GreaterThan, 4.0);
+$ids = $query->orderedIds('rating', OrderDirection::Descending, 20);
+```
+
+A queried repeater — `queried: true` in its declaration, which forces the
+leaves table — is queried **member-qualified**:
+
+```php
+$ids = $query->postIds('credits.role', Operator::Equals, 'author', 50);
+```
+
+The composition pattern: the query answers "which objects", the repository
+turns the ids into entities through its own hardened query — never
+`meta_query`, and never a query against a `Meta` field.
 
 ## Edit the fields
 

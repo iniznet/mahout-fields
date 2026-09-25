@@ -52,6 +52,27 @@ $writer->set('season', ObjectRef::post($postId), 3);
 A component never reads a raw `get_post_meta()` for a registered field: the
 reader and the writer are the whole of the encapsulation rule.
 
+
+A repeater reads through `items()` — the declared shape, assembled from the
+storage leaves, one scalar per address, no envelope:
+
+```php
+$credits = $reader->items('credits', ObjectRef::post($postId));
+// [['role' => 'author', 'name' => 'Ursula K. Le Guin'], …]
+```
+
+## Query the fields
+
+Only `Table` storage is queryable. `Contracts\FieldQuery` answers in post
+ids — bounded, placeholder-bound — and a queried repeater is queried
+member-qualified:
+
+```php
+use Iniznet\Mahout\Fields\Operator;
+
+$ids = $query->postIds('isbn', Operator::Equals, '978-0-241-26858-2', 50);
+$ids = $query->postIds('credits.role', Operator::Equals, 'author', 50);
+```
 ## Edit the fields
 
 The storage core renders nothing. `Admin\FieldsUiProvider`, registered after
