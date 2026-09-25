@@ -14,7 +14,7 @@ FieldRegistry --> RegisteredField --> FieldReader / FieldWriter
       |                                     |
       v                                     v
 MetaStorage  |  TableStorage ----------> mahout-db Contracts (SqlConnection, TableGateway)
-RepeaterCodec
+LeafAddress
 
 Admin\FieldsUiProvider (opt-in, registered after the core provider)
       |
@@ -40,9 +40,9 @@ container.
   carries an explicit `StorageTarget`; there is no default.
 - **Registration.** `FieldRegistry` applies the storage-target filter, then
   runs the combination rules against the *result*: an option-context field is
-  `Meta` always, a queried repeater binds the items table never JSON, a
-  repeater whose item type has no generic column is refused on the table
-  target, and an id answers to exactly one field.
+  `Meta` always, a queried repeater binds the leaves table, a `Carried` field
+  outside a repeater item is refused, a repeater nests at most three levels
+  with Carried members, and an id answers to exactly one field.
 - **Storage.** `Internal\\MetaStorage` for the load-with-the-entity store,
   `Internal\\TableStorage` for the two typed tables. A repeater stores no
   envelope: every leaf is one scalar at its address — the chain of positions

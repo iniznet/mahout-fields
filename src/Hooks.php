@@ -231,6 +231,8 @@ final class Hooks
      * Core's enqueue point for the admin screens. The package's default
      * stylesheet is enqueued here, on exactly the screens whose request renders
      * field UI -- a panel's post type edit screen, a declared option screen.
+     *
+     * @action admin_enqueue_scripts
      */
     public const string ADMIN_ENQUEUE_SCRIPTS = 'admin_enqueue_scripts';
 

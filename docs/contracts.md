@@ -130,8 +130,9 @@ reads is part of this contract.
 are public values a consumer constructs and passes. They are `final readonly`
 and carry no collaborator; the static `table()` factories on the two schema
 declarations are value factories, which the static-access contract permits.
-`FieldValuesTable`, `FieldItemsTable`, `RepeaterCodec` and `Hooks` are
-documented in the generated hook reference and the architecture docs.
+`FieldValuesTable`, `FieldLeavesTable` (and the legacy `FieldItemsTable`
+the address migration reads) and `Hooks` are documented in the generated
+hook reference and the architecture docs.
 
 `FieldPanel` is one declared panel: a `FieldGroup` paired with the post type
 whose edit screen renders it. The pairing is a value because the group carries
