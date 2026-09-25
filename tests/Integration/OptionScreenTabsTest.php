@@ -1,0 +1,341 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Iniznet\Mahout\Fields\Tests\Integration;
+
+use Iniznet\Mahout\Fields\Admin\FieldsUiProvider;
+use Iniznet\Mahout\Fields\Admin\Nonces;
+use Iniznet\Mahout\Fields\Admin\OptionScreenManager;
+use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
+use Iniznet\Mahout\Fields\Contracts\FieldRegistry as FieldRegistryContract;
+use Iniznet\Mahout\Fields\Contracts\FieldWriter as FieldWriterContract;
+use Iniznet\Mahout\Fields\Contracts\OptionScreens;
+use Iniznet\Mahout\Fields\Contracts\RequestInput as RequestInputContract;
+use Iniznet\Mahout\Fields\Exception\InvalidPanelDeclaration;
+use Iniznet\Mahout\Fields\FieldGroup;
+use Iniznet\Mahout\Fields\Hooks;
+use Iniznet\Mahout\Fields\MirrorCodec;
+use Iniznet\Mahout\Fields\ObjectContext;
+use Iniznet\Mahout\Fields\ObjectRef;
+use Iniznet\Mahout\Fields\OptionScreen;
+use Iniznet\Mahout\Fields\OptionSection;
+use Iniznet\Mahout\Fields\OptionTab;
+use Iniznet\Mahout\Fields\StorageTarget;
+use Iniznet\Mahout\Fields\Tests\Fixtures\ArrayRequestInput;
+use Iniznet\Mahout\Fields\Tests\Fixtures\DeclaredOptionScreens;
+use Iniznet\Mahout\Fields\Tests\TestCase;
+use Iniznet\Mahout\Fields\TextField;
+use Iniznet\Mahout\Kernel\Container;
+use Iniznet\Mahout\Kernel\Diagnostics;
+
+/**
+ * The option screen's page structure: tabs of sections, each section either
+ * one group's fields or the declaring feature's own markup. A screen declares
+ * its content one way -- its own group, normalised into the tab list, or
+ * tabs, never both -- a screen whose tabs carry no field group renders no
+ * form and gets no save entry, and the save writes exactly the active tab's
+ * groups, group by group, in the order the sections render.
+ *
+ * @internal
+ */
+final class OptionScreenTabsTest extends TestCase
+{
+    private const string FIELDS_TAB = 'Fields';
+
+    private const string GUIDE_TAB = 'Guide';
+
+    private const string GROUP = 'fixture_group';
+
+    private const string SECOND_GROUP = 'fixture_second_group';
+
+    private const string SLUG = 'fixture_screen';
+
+    public function testADeclaredGroupIsNormalisedIntoOneTab(): void
+    {
+        $screen = new OptionScreen(self::SLUG, 'Fixture options', 'Fixture fields', $this->group(), 'manage_options');
+
+        self::assertCount(1, $screen->tabs, 'the group-only shape is the canonical single tab');
+        self::assertSame(self::GROUP, $screen->fieldGroups()[0]->id);
+        self::assertTrue($screen->hasFields());
+    }
+
+    public function testAScreenDeclaresItsContentOneWayOrNone(): void
+    {
+        try {
+            new OptionScreen(self::SLUG, 'Fixture options', 'Fixture fields', null, 'manage_options');
+            self::fail('a screen with no group and no tabs is a page that renders nothing');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('neither a group nor tabs', $refusal->getMessage());
+        }
+
+        try {
+            new OptionScreen(self::SLUG, 'Fixture options', 'Fixture fields', $this->group(), 'manage_options', tabs: [
+                new OptionTab(self::FIELDS_TAB, [OptionSection::fields('', $this->group())]),
+            ]);
+            self::fail('a screen declares its group and tabs, never both');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('inside a tab', $refusal->getMessage());
+        }
+    }
+
+    public function testATabDeclaresALabelAndSections(): void
+    {
+        try {
+            new OptionTab('', [OptionSection::fields('', $this->group())]);
+            self::fail('the label is the tab\'s key in the URL');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('no label', $refusal->getMessage());
+        }
+
+        try {
+            new OptionTab(self::GUIDE_TAB, []);
+            self::fail('an empty tab is a page that renders nothing');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('no section', $refusal->getMessage());
+        }
+    }
+
+    public function testAContentSectionNamesAMarkupFileThatExists(): void
+    {
+        try {
+            OptionSection::content('Guide', '');
+            self::fail('a section that names no markup file renders nothing');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('names no markup file', $refusal->getMessage());
+        }
+
+        try {
+            OptionSection::content('Guide', __DIR__.'/no-such-file.php');
+            self::fail('the markup is part of the codebase, not a runtime condition');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('does not exist', $refusal->getMessage());
+        }
+    }
+
+    public function testATabFieldSectionIsRefusedForANonOptionGroup(): void
+    {
+        $post = new FieldGroup('fixture_post_group', ObjectContext::Post, [
+            new TextField('fixture_post_text', StorageTarget::Meta),
+        ]);
+
+        try {
+            new OptionScreen(self::SLUG, 'Fixture options', 'Fixture fields', null, 'manage_options', tabs: [
+                new OptionTab(self::FIELDS_TAB, [OptionSection::fields('', $post)]),
+            ]);
+            self::fail('a post group on a settings page addresses an object that does not exist there');
+        } catch (InvalidPanelDeclaration $refusal) {
+            self::assertStringContainsString('option context', $refusal->getMessage());
+        }
+    }
+
+    public function testTwoTabsRenderTheBarAndOnlyTheActiveTabsSections(): void
+    {
+        $this->bootScreen(params: ['tab' => self::GUIDE_TAB]);
+
+        \ob_start();
+        \do_action(\get_plugin_page_hookname(self::SLUG, 'options-general.php'));
+        $markup = (string) \ob_get_clean();
+
+        self::assertStringContainsString('nav-tab-wrapper', $markup, 'two tabs render core\'s own tab bar');
+        self::assertStringContainsString('nav-tab-active', $markup, 'the active tab is marked');
+        self::assertStringContainsString('Fixture guide markup', $markup, 'the active tab\'s content section renders');
+        self::assertStringNotContainsString('name="fixture_text"', $markup, 'the inactive tab\'s fields do not render');
+    }
+
+    public function testAContentOnlyScreenRendersNoFormAndGetsNoSaveEntry(): void
+    {
+        // A documentation screen: every tab is content, no field group anywhere.
+        $docs = new OptionScreen(
+            'fixture_docs',
+            'Fixture docs',
+            'Fixture docs',
+            null,
+            'manage_options',
+            tabs: [new OptionTab(self::GUIDE_TAB, [
+                OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php'),
+            ])],
+        );
+
+        $this->registry->register($this->group());
+        $this->signInAsAdministrator();
+        (new FieldsUiProvider())->boot($this->container(
+            new ArrayRequestInput(),
+            [$docs],
+        ));
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+
+        \ob_start();
+        \do_action(\get_plugin_page_hookname('fixture_docs', 'options-general.php'));
+        $markup = (string) \ob_get_clean();
+
+        self::assertStringContainsString('Fixture guide markup', $markup);
+        self::assertStringNotContainsString('<form', $markup, 'nothing can be submitted to a screen that declares no fields');
+        self::assertStringNotContainsString('name="'.Nonces::nonceField().'"', $markup, 'no form, no nonce');
+        self::assertStringNotContainsString('submit', $markup);
+
+        $hook = \get_plugin_page_hookname('fixture_docs', 'options-general.php');
+        self::assertFalse(\has_action(Hooks::screenLoad($hook)), 'no fields, no save entry -- nothing can fail');
+    }
+
+    public function testTheScreenRendersItsStructure(): void
+    {
+        $this->bootScreen(params: ['tab' => self::FIELDS_TAB]);
+
+        \ob_start();
+        \do_action(\get_plugin_page_hookname(self::SLUG, 'options-general.php'));
+        $markup = (string) \ob_get_clean();
+
+        self::assertStringContainsString('<h2>Fixture group</h2>', $markup, 'a titled section renders its heading');
+        self::assertStringContainsString('<p class="description">Fixture options intro.</p>', $markup, 'the page\'s own intro renders');
+        self::assertStringContainsString('type="hidden" name="'.OptionScreenManager::TAB_PARAM.'" value="'.self::FIELDS_TAB.'"', $markup, 'the form carries the active tab back');
+    }
+
+    public function testTheSaveWritesEveryGroupOfTheActiveTab(): void
+    {
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->signInAsAdministrator();
+
+        $container = $this->container(
+            new ArrayRequestInput(
+                body: [Nonces::nonceField() => \wp_create_nonce(Nonces::screenAction(self::SLUG))],
+                groups: [
+                    self::GROUP => ['fixture_text' => 'first group saved'],
+                    self::SECOND_GROUP => ['fixture_second_text' => 'second group saved'],
+                ],
+                hashes: [
+                    self::GROUP => MirrorCodec::hash([]),
+                    self::SECOND_GROUP => MirrorCodec::hash([]),
+                ],
+                params: ['tab' => self::FIELDS_TAB],
+            ),
+            [$this->tabbedScreen()],
+        );
+        (new FieldsUiProvider())->boot($container);
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+        \do_action(Hooks::screenLoad(\get_plugin_page_hookname(self::SLUG, 'options-general.php')));
+
+        self::assertSame('first group saved', $this->reader->value('fixture_text', ObjectRef::option()));
+        self::assertSame('second group saved', $this->reader->value('fixture_second_text', ObjectRef::option()), 'every field section of the active tab is saved, in the order the sections render');
+    }
+
+    public function testTheSaveWritesOnlyTheActiveTabsGroups(): void
+    {
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->signInAsAdministrator();
+
+        $container = $this->container(
+            new ArrayRequestInput(
+                body: [Nonces::nonceField() => \wp_create_nonce(Nonces::screenAction(self::SLUG))],
+                groups: [self::SECOND_GROUP => ['fixture_second_text' => 'never written']],
+                params: ['tab' => self::GUIDE_TAB],
+            ),
+            [$this->tabbedScreen()],
+        );
+        (new FieldsUiProvider())->boot($container);
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+        \do_action(Hooks::screenLoad(\get_plugin_page_hookname(self::SLUG, 'options-general.php')));
+
+        self::assertNull($this->reader->value('fixture_second_text', ObjectRef::option()), 'a submission for another tab writes nothing');
+    }
+
+    // ------------------------------------------------------------------
+
+    private function tabbedScreen(): OptionScreen
+    {
+        return new OptionScreen(
+            self::SLUG,
+            'Fixture options',
+            'Fixture fields',
+            null,
+            'manage_options',
+            description: 'Fixture options intro.',
+            tabs: [
+                new OptionTab(self::FIELDS_TAB, [
+                    OptionSection::fields('Fixture group', $this->group()),
+                    OptionSection::fields('Fixture second group', $this->secondGroup()),
+                ]),
+                new OptionTab(self::GUIDE_TAB, [
+                    OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php'),
+                ]),
+            ],
+        );
+    }
+
+    private function secondGroup(): FieldGroup
+    {
+        return new FieldGroup(self::SECOND_GROUP, ObjectContext::Option, [
+            new TextField('fixture_second_text', StorageTarget::Meta, label: 'Second'),
+        ], label: 'Fixture second group');
+    }
+
+    private function group(): FieldGroup
+    {
+        return new FieldGroup(self::GROUP, ObjectContext::Option, [
+            new TextField('fixture_text', StorageTarget::Meta, label: 'Text'),
+        ], label: 'Fixture group');
+    }
+
+    private function bootScreen(array $params = []): void
+    {
+        $this->registry->register($this->group());
+        $this->registry->register($this->secondGroup());
+        $this->signInAsAdministrator();
+
+        (new FieldsUiProvider())->boot($this->container(
+            new ArrayRequestInput(params: $params),
+            [$this->tabbedScreen()],
+        ));
+
+        $this->loadAdminApi();
+        $this->resetMenus();
+        \do_action(Hooks::ADMIN_MENU);
+    }
+
+    /**
+     * @param list<OptionScreen> $screens
+     */
+    private function container(ArrayRequestInput $request, array $screens): Container
+    {
+        $container = new Container();
+        $container->set(service: $this->registry, id: FieldRegistryContract::class);
+        $container->set(service: $this->reader, id: FieldReaderContract::class);
+        $container->set(service: $this->writer, id: FieldWriterContract::class);
+        $container->set(service: $request, id: RequestInputContract::class);
+        $container->set($this->diagnostics(), id: Diagnostics::class);
+        $container->set(new DeclaredOptionScreens($screens), id: OptionScreens::class);
+
+        (new FieldsUiProvider())->register($container);
+
+        return $container;
+    }
+
+    private function signInAsAdministrator(): void
+    {
+        wp_set_current_user((int) self::factory()->user->create(['role' => 'administrator']));
+    }
+
+    /** Core's settings-page API is an admin include; the suite boots the front end. */
+    private function loadAdminApi(): void
+    {
+        require_once \ABSPATH.'wp-admin/includes/plugin.php';
+        require_once \ABSPATH.'wp-admin/includes/template.php';
+    }
+
+    private function resetMenus(): void
+    {
+        $GLOBALS['submenu'] = [];
+        $GLOBALS['menu'] = [];
+    }
+}

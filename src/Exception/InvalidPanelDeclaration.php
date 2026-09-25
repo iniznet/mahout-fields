@@ -60,6 +60,70 @@ final class InvalidPanelDeclaration extends \InvalidArgumentException implements
         );
     }
 
+    /** An option screen declares neither its own group nor tabs: a page that renders nothing. */
+    public static function screenWithoutContent(string $identifier): self
+    {
+        return new self(
+            sprintf('The option screen "%s" declares neither a group nor tabs; a page that renders nothing is not a screen.', $identifier),
+            $identifier,
+        );
+    }
+
+    /** An option screen declares its own group and tabs: the group belongs in a tab's section, one way. */
+    public static function groupInsideTabs(string $groupId): self
+    {
+        return new self(
+            sprintf('The option screen for group "%s" declares a group and tabs; declare the group inside a tab\'s section.', $groupId),
+            $groupId,
+        );
+    }
+
+    public static function emptyTabLabel(string $identifier): self
+    {
+        return new self(
+            sprintf('The option screen "%s" declares a tab with no label; the label is the tab\'s key in the URL.', $identifier),
+            $identifier,
+        );
+    }
+
+    public static function emptyTabSections(string $tabLabel): self
+    {
+        return new self(
+            sprintf('The option tab "%s" declares no section; an empty tab is a page that renders nothing.', $tabLabel),
+            $tabLabel,
+        );
+    }
+
+    public static function emptySectionMarkup(string $sectionTitle): self
+    {
+        return new self(
+            sprintf('The option section "%s" names no markup file.', $sectionTitle),
+            $sectionTitle,
+        );
+    }
+
+    public static function missingSectionMarkup(string $markupPath): self
+    {
+        return new self(
+            sprintf('The option section\'s markup file "%s" does not exist; the markup is part of the codebase.', $markupPath),
+            $markupPath,
+        );
+    }
+
+    /** A tab's field section declares a group that is not option-context: the save would address an object that does not exist there. */
+    public static function tabGroupNotOptionContext(string $groupId, string $declared, string $tabLabel): self
+    {
+        return new self(
+            sprintf(
+                'The option tab "%s" declares the group "%s" in the %s context; an option screen serves the option context.',
+                $tabLabel,
+                $groupId,
+                $declared,
+            ),
+            $groupId,
+        );
+    }
+
     public function groupId(): string
     {
         return $this->groupId;

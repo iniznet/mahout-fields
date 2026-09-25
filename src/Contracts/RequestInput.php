@@ -44,4 +44,12 @@ interface RequestInput
      * @return array<string, string>
      */
     public function hashes(): array;
+
+    /**
+     * A request parameter: the URL's query string or the submitted body, the
+     * adapter owning the merge. The option screen's active tab is URL state
+     * that the page's render and its save both read through here -- the one
+     * boundary, so no superglobal is read inside this package.
+     */
+    public function param(string $key): ?string;
 }

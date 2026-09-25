@@ -160,6 +160,62 @@ loudly in `boot()`. A host that wants another panel renderer binds its own
 under `Contracts\FieldEditor` after this provider registers; a host that wants
 another control for one field type uses `mahout/fields/editor_controls`.
 
+## Option screens: a page, not a field bag
+
+An option screen declares a whole settings page. The one-line shape pairs one
+option-context group with the page that renders it:
+
+```php
+new \Iniznet\Mahout\Fields\OptionScreen(
+    pageSlug: 'howdah-display',
+    pageTitle: 'Display',
+    menuTitle: 'Display',
+    group: $displayGroup,
+    capability: 'manage_options',
+);
+```
+
+A page is not always filled with fields. For tabs, an intro line, or plain
+documentation, declare the page's structure instead -- `OptionTab`s of
+`OptionSection`s, each section either one group's fields or a markup file the
+declaring feature ships:
+
+```php
+new \Iniznet\Mahout\Fields\OptionScreen(
+    pageSlug: 'howdah-display',
+    pageTitle: 'Display',
+    menuTitle: 'Display',
+    group: null,
+    capability: 'manage_options',
+    description: 'How the site takes its display options.',
+    tabs: [
+        new \Iniznet\Mahout\Fields\OptionTab('Options', [
+            \Iniznet\Mahout\Fields\OptionSection::fields('Footer note', $displayGroup),
+        ]),
+        new \Iniznet\Mahout\Fields\OptionTab('Guide', [
+            \Iniznet\Mahout\Fields\OptionSection::content(
+                'How display options work',
+                __DIR__.'/../app/Admin/markup/display-guide.php',
+            ),
+        ]),
+    ],
+);
+```
+
+The rules are the declaration's, refused at construction: a screen declares
+its content one way -- its own group or tabs, never both, and neither is not
+a screen; a tab has a label (it is the tab's key in the URL) and at least one
+section; a content section's markup file is part of the codebase and must
+exist; every group on the page, declared or inside a tab, is option-context.
+
+A screen whose tabs carry no field group at all renders no form -- no nonce,
+no save button, no save entry: a documentation or guide page is a screen like
+any other, and nothing can be submitted to it. A tabbed screen saves exactly
+the active tab's groups, group by group, in the order its sections render,
+through the same guard order the metaboxes use; the form carries the active
+tab back as a hidden field, and the request adapter's `param()` is the one
+boundary it is read through.
+
 The controls arrive styled. `Admin\FieldStyles` enqueues the package's own
 `resources/fields.css` — scoped to its `mahout-fields-*` class names — on
 exactly the screens that render field UI: a declared panel's post type edit

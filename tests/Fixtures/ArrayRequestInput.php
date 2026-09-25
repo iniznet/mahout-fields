@@ -16,11 +16,13 @@ final class ArrayRequestInput implements RequestInput
      * @param array<string, mixed>                                                    $body    the submitted form, unslashed
      * @param array<string, array<string, string|list<string>|null>>                  $groups
      * @param array<string, string>                                                   $hashes
+     * @param array<string, string>                                                   $params  the request parameters, query and body merged
      */
     public function __construct(
         private array $body = [],
         private array $groups = [],
         private array $hashes = [],
+        private array $params = [],
     ) {
     }
 
@@ -48,5 +50,13 @@ final class ArrayRequestInput implements RequestInput
     public function hashes(): array
     {
         return $this->hashes;
+    }
+
+    #[\Override]
+    public function param(string $key): ?string
+    {
+        $value = $this->params[$key] ?? null;
+
+        return \is_string($value) ? $value : null;
     }
 }
