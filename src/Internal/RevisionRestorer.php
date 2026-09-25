@@ -206,16 +206,7 @@ final readonly class RevisionRestorer
 
                 return $current->item;
             }
-
-            $member = null;
-
-            foreach ($current->members() as $candidate) {
-                if ($candidate->id === $segments[$index]) {
-                    $member = $candidate;
-
-                    break;
-                }
-            }
+            $member = array_find($current->members(), fn ($candidate) => $candidate->id === $segments[$index]);
 
             if (null === $member) {
                 throw InvalidMirrorPayload::malformedRow($root->id, 0);

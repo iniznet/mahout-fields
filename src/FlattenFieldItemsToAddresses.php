@@ -47,16 +47,16 @@ final readonly class FlattenFieldItemsToAddresses implements Migration
     public function up(): void
     {
         $leaves = FieldLeavesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
-        $items = $this->legacyTable();
+        $legacy = $this->legacyName();
 
-        if (null === $items) {
+        if (null === $legacy) {
             return;
         }
 
         $offset = 0;
 
         do {
-            $rows = $this->legacyRows($items, $offset, self::CHUNK);
+            $rows = $this->legacyRows($legacy, $offset, self::CHUNK);
             $offset += count($rows);
 
             foreach ($rows as $row) {
@@ -64,40 +64,35 @@ final readonly class FlattenFieldItemsToAddresses implements Migration
             }
         } while ([] !== $rows);
 
-        $this->connection->execute($this->emitter->drop($items->name));
+        $this->connection->execute($this->emitter->drop($legacy));
     }
 
     public function down(): void
     {
-        throw MigrationIrreversible::because($this->name(), (string) $this->irreversibleReason());
+        throw MigrationIrreversible::because($this->name(), $this->irreversibleReason());
     }
 
+    /** @return string this migration never reverses */
     public function irreversibleReason(): string
     {
         return 'a nested leaf address cannot map back to one row per item';
     }
 
-    /** The legacy table, or null when this install never created one. */
-    private function legacyTable(): ?Table
+    /**
+     * The legacy table's name, or null when this install never created one.
+     * The existence probe is a schema query on a migration path — never a
+     * request path — and it names the table by a bound placeholder.
+     */
+    private function legacyName(): ?Identifier
     {
         $name = Identifier::prefixed($this->connection->prefix(), 'mahout_field_items');
 
         $rows = $this->connection->rowsPrepared(
-            'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?',
+            'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s',
             $name->value,
         );
 
-        if ([] === $rows) {
-            return null;
-        }
-
-        return new Table(
-            name: $name,
-            columns: [],
-            indexes: [],
-            engine: \Iniznet\Mahout\Db\Engine::InnoDB,
-            charsetCollate: $this->connection->charsetCollate(),
-        );
+        return [] === $rows ? null : $name;
     }
 
     /**
@@ -106,10 +101,10 @@ final readonly class FlattenFieldItemsToAddresses implements Migration
      *
      * @return list<array<string, string|int|null>>
      */
-    private function legacyRows(Table $items, int $offset, int $limit): array
+    private function legacyRows(Identifier $legacy, int $offset, int $limit): array
     {
         $statement = 'SELECT object_kind, object_id, field_id, position, value_text, value_int'
-            .' FROM '.$items->name->quoted()
+            .' FROM '.$legacy->quoted()
             .' ORDER BY object_id, field_id, position'
             .' LIMIT '.$limit.' OFFSET '.$offset;
 

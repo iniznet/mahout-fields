@@ -386,16 +386,7 @@ final readonly class FieldMover
 
                 return $current->item;
             }
-
-            $member = null;
-
-            foreach ($current->members() as $candidate) {
-                if ($candidate->id === $segments[$index]) {
-                    $member = $candidate;
-
-                    break;
-                }
-            }
+            $member = array_find($current->members(), fn ($candidate) => $candidate->id === $segments[$index]);
 
             if (null === $member) {
                 throw InvalidFieldWrite::badRepeaterAddress($root->id);
