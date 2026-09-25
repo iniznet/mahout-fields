@@ -126,7 +126,8 @@ reads is part of this contract.
 
 `FieldGroup`, `Field` and its ten concrete field classes, `FieldPanel`,
 `StorageTarget`, `FieldType`, `ObjectContext`, `ObjectKind`, `ObjectRef`,
-`RegisteredField`
+`RegisteredField`, `OptionScreen`, `OptionTab`, `OptionSection`,
+`OptionScreenLayout`
 are public values a consumer constructs and passes. They are `final readonly`
 and carry no collaborator; the static `table()` factories on the two schema
 declarations are value factories, which the static-access contract permits.
@@ -193,6 +194,53 @@ its own controls.
 `Contracts\FieldEditor` and `Contracts\FieldControl` are the other two admin
 surfaces a host may re-bind or extend: the panel renderer behind the metabox,
 and the one input a field type renders into.
+
+### `Contracts\OptionScreens`
+
+```php
+interface OptionScreens extends \IteratorAggregate
+{
+    public function isEmpty(): bool;
+}
+```
+
+| | |
+|---|---|
+| Role | the host's declared option screens, from which every settings page, its tabbed sections, its save entries and its notices are derived |
+| Implementation in this package | none: the host's collection implements it |
+| Read by | `Admin\FieldsUiProvider` and `Admin\OptionScreenManager`, and nothing else |
+
+One screen is one `OptionScreen`: the page a tabbed set of sections renders --
+a section either one group's fields or a markup file the declaring feature
+ships -- with the page's placement (a parent menu or a top-level menu with its
+own icon) and its reading layout (a sidebar column, the default, or core's
+nav-tab bar) as the declaration's own facts. No binding and an empty
+collection attach nothing; that is the whole opt-in, the same as the panels'.
+
+### `Contracts\RequestInput`
+
+```php
+interface RequestInput
+{
+    public function has(string $key): bool;
+    public function string(string $key): ?string;
+    /** @return array<string, array<string, string|list<string>|null>> */
+    public function groups(): array;
+    /** @return array<string, string> */
+    public function hashes(): array;
+    public function param(string $key): ?string;
+}
+```
+
+| | |
+|---|---|
+| Role | the save boundary's request adapter: the submitted panels, their expected-state hashes and the request's parameters, read through one contract so no superglobal is read inside this package |
+| Implementation in this package | none: the host's adapter implements it |
+| Read by | `Admin\FieldSaveHandler` for the metabox path, `Admin\OptionScreenManager` for the option screens |
+
+`param()` is the option screen's active tab -- URL state the page's render and
+its save both read through the one boundary. The adapter owns the merge of the
+query string and the submitted body; the body wins on a collision.
 
 ## What a consumer may rely on
 

@@ -228,25 +228,35 @@ default, for pages that read as a document -- or core's nav-tab bar across
 the top. The shipped stylesheet styles the page shell and both layouts; a
 host that took styling over owns the look instead.
 
-A screen whose tabs carry no field group at all renders no form -- no nonce,
-no save button, no save entry: a documentation or guide page is a screen like
-any other, and nothing can be submitted to it. A tabbed screen saves exactly
-the active tab's groups, group by group, in the order its sections render,
-through the same guard order the metaboxes use; the form carries the active
-tab back as a hidden field, and the request adapter's `param()` is the one
+A tab that carries no field section renders no form at all -- no nonce, no
+save button: a documentation or guide panel is a tab like any other, and
+nothing can be submitted to it. A screen with no field group anywhere also
+registers no save entry, because nothing can fail on it. Each fields panel is
+its own form: a submission posts exactly the panel it came from, and the save
+writes that tab's groups, group by group, in the order its sections render,
+through the same guard order the metaboxes use. Each form carries its tab
+back as a hidden field, and the request adapter's `param()` is the one
 boundary it is read through.
+
+The page is one load: every tab's sections render, the inactive panel
+hidden, and the package's own script swaps the visible panel without a
+request -- the URL and every form's tab field follow the panel the visitor
+sees, so the save still writes the tab the visitor is on. Without the script
+the links navigate and the server renders the requested tab; one page, two
+paths, and no inline script anywhere.
 
 The controls arrive styled. `Admin\FieldStyles` enqueues the package's own
 `resources/fields.css` — scoped to its `mahout-fields-*` class names — on
 exactly the screens that render field UI: a declared panel's post type edit
-screen, a declared option screen's page. A host takes styling over through
+screen, a declared option screen's page, where it also enqueues the
+tab-switching script, `resources/fields.js`. A host takes styling over through
 `Contracts\FieldUiPolicy`: `styled() === false` removes the handle and every
 default class, and the policy's per-field `FieldUi` value replaces a field's
 control (a name that is not a control is refused at the render site), strips
 one field's default styling while keeping the built-in control, or both. A
 package install no core API can name a URL for refuses loudly at the enqueue
-site; a host in that position binds its own `Admin\FieldStyles` with an
-explicit URL.
+site; a host in that position binds its own `Admin\FieldStyles` with explicit
+URLs -- the stylesheet's and the script's.
 
 ## The failure modes a newcomer hits
 
@@ -258,6 +268,7 @@ explicit URL.
 | `InvalidStorageCombination` | an option-context field on `Table`, or a queried repeater on `Meta` |
 | `ServiceNotFound: SqlConnection` | mahout-db is not registered before this provider |
 | `ServiceNotFound: RequestInput` | the UI provider is registered and has panels, but the host bound no request adapter |
+| `UnresolvableFieldStyles` | the package's assets live where no core API can name a URL; bind `Admin\FieldStyles` with explicit URLs, or take styling over through `Contracts\FieldUiPolicy` |
 | No metabox on a screen | no panel declares that post type, or the UI provider is not registered |
 | Tables missing | the migrations have not run — switch the theme, or run `wp mahout migrate` |
 
