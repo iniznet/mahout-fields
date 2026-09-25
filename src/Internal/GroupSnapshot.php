@@ -7,6 +7,7 @@ namespace Iniznet\Mahout\Fields\Internal;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Field;
 use Iniznet\Mahout\Fields\FieldGroup;
+use Iniznet\Mahout\Fields\LeafAddress;
 use Iniznet\Mahout\Fields\ObjectRef;
 use Iniznet\Mahout\Fields\RepeaterField;
 use Iniznet\Mahout\Fields\StorageTarget;
@@ -31,7 +32,7 @@ final readonly class GroupSnapshot
     }
 
     /**
-     * @return list<array{field: string, items: list<string|int|float|bool>}|array{field: string, value: string|int|float|bool}>
+     * @return list<array{field: string, leaves: list<array{address: string, value: string|int|float|bool}>}|array{field: string, value: string|int|float|bool}>
      */
     public function rows(FieldGroup $group, ObjectRef $object): array
     {
@@ -71,18 +72,25 @@ final readonly class GroupSnapshot
     }
 
     /**
-     * @return array{field: string, items: list<string|int|float|bool>}|null
+     * The repeater's leaves, relative address to stored value, in address
+     * order. The mirror's row shape is the leaf set — the storage shape
+     * itself — so a revision restores exactly the rows the table held.
+     *
+     * @return array{field: string, leaves: list<array{address: string, value: string|int|float|bool}>}|null
      */
     private function itemRow(RepeaterField $field, ObjectRef $object): ?array
     {
-        $items = [];
+        $leaves = [];
 
-        foreach ($this->table->readItems($field, $object) as $item) {
-            if (null !== $item['value']) {
-                $items[] = $item['value'];
+        foreach ($this->table->readLeaves($field, $object) as $leaf) {
+            if (null === $leaf['raw']) {
+                continue;
             }
+
+            $relative = LeafAddress::relative($leaf['address']);
+            $leaves[] = ['address' => $relative, 'value' => $leaf['raw']];
         }
 
-        return [] === $items ? null : ['field' => $field->id, 'items' => $items];
+        return [] === $leaves ? null : ['field' => $field->id, 'leaves' => $leaves];
     }
 }

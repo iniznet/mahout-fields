@@ -31,7 +31,8 @@ use Iniznet\Mahout\Fields\Exception\InvalidMirrorPayload;
  * @phpstan-type RowValue   string|int|float|bool
  * @phpstan-type ScalarRow  array{field: string, value: RowValue}
  * @phpstan-type ItemRow    array{field: string, items: list<RowValue>}
- * @phpstan-type MirrorRow  ScalarRow|ItemRow
+ * @phpstan-type LeafRow    array{field: string, leaves: list<array{address: string, value: RowValue}>}
+ * @phpstan-type MirrorRow  ScalarRow|ItemRow|LeafRow
  * @phpstan-type MirrorRows list<MirrorRow>
  * @phpstan-type Payload    array{hash: string, rows: MirrorRows}
  */
@@ -39,7 +40,7 @@ final readonly class MirrorCodec
 {
     public const int VERSION = 1;
 
-    public const int SCHEMA = 1;
+    public const int SCHEMA = 2;
 
     private const string ROWS_KEY = 'rows';
 
@@ -120,9 +121,11 @@ final readonly class MirrorCodec
     {
         $normalised = [];
         foreach ($rows as $row) {
-            $normalised[] = isset($row['items'])
-                ? ['field' => $row['field'], 'items' => $row['items']]
-                : ['field' => $row['field'], 'value' => $row['value']];
+            $normalised[] = isset($row['leaves'])
+                ? ['field' => $row['field'], 'leaves' => $row['leaves']]
+                : (isset($row['items'])
+                    ? ['field' => $row['field'], 'items' => $row['items']]
+                    : ['field' => $row['field'], 'value' => $row['value']]);
         }
 
         return $normalised;
@@ -186,6 +189,21 @@ final readonly class MirrorCodec
 
         if (!\is_string($fieldId)) {
             throw InvalidMirrorPayload::malformedRow($groupId, $position);
+        }
+
+        $leaves = $row['leaves'] ?? null;
+
+        if (\is_array($leaves) && \array_is_list($leaves)) {
+            foreach ($leaves as $leaf) {
+                if (!\is_array($leaf) || !\is_string($leaf['address'] ?? null) || !\is_scalar($leaf['value'] ?? null)) {
+                    throw InvalidMirrorPayload::malformedRow($groupId, $position);
+                }
+            }
+
+            /** @var LeafRow $validated */
+            $validated = ['field' => $fieldId, 'leaves' => $leaves];
+
+            return $validated;
         }
 
         $items = $row['items'] ?? null;

@@ -109,7 +109,7 @@ final class FieldMigrationTest extends TestCase
         self::assertSame(['paperback', 'hardcover'], $this->repeaterTableReader()->items('fixture_items', $object));
     }
 
-    public function testTableToMetaMovesRepeaterItemsBackIntoTheVersionedPayload(): void
+    public function testTableToMetaMovesRepeaterItemsBackIntoAddressedMetaKeys(): void
     {
         $postId = $this->postId();
         $this->registry->register($this->tableRepeaterGroup());
@@ -118,8 +118,9 @@ final class FieldMigrationTest extends TestCase
 
         (new MigrateFieldTableToMeta($this->registry, $this->gateway, $this->connection(), 'fixture_items'))->up();
 
-        self::assertNull($this->rawItemRow('fixture_items', $postId, 0));
-        self::assertSame(['hardcover', 'paperback'], $this->repeaterMetaReader()->items('fixture_items', $object));
+        self::assertNull($this->rawLeaf('fixture_items', $postId, '0'));
+        self::assertSame('hardcover', \get_post_meta($postId, 'fixture_items.0', true));
+        self::assertSame('paperback', \get_post_meta($postId, 'fixture_items.1', true));
     }
 
     public function testEachDirectionReversesTheOther(): void
@@ -231,7 +232,7 @@ final class FieldMigrationTest extends TestCase
         $registry = new FieldRegistry();
         $registry->register($group);
         $meta = new MetaStorage();
-        $table = new TableStorage($this->gateway, $this->valuesTable, $this->itemsTable);
+        $table = new TableStorage($this->gateway, $this->valuesTable, $this->leavesTable);
 
         return new FieldReader($registry, $meta, $table, $this->mirror);
     }

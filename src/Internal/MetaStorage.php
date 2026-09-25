@@ -80,6 +80,93 @@ final readonly class MetaStorage
         };
     }
 
+    /**
+     * A repeater's stored leaves under one root, read from the object's own
+     * meta set. The meta API is the enumeration — get_metadata returns every
+     * key the object carries, already cached with the entity — so a prefix
+     * delete never becomes a LIKE query, and the read is bounded by the
+     * object's own meta count.
+     *
+     * @return array<string, string|int|float|bool> the full address => the raw stored value
+     */
+    public function leaves(string $rootId, ObjectRef $object): array
+    {
+        $prefix = ObjectContext::Option === $object->context
+            ? self::OPTION_PREFIX.'/'.$rootId.'.'
+            : $rootId.'.';
+
+        $all = match ($object->context) {
+            ObjectContext::Option => $this->optionLeaves(),
+            ObjectContext::Post, ObjectContext::User, ObjectContext::Term => \get_metadata($object->context->value, $object->id, '', false),
+        };
+
+        if (!\is_array($all)) {
+            return [];
+        }
+
+        $leaves = [];
+
+        foreach ($all as $key => $values) {
+            if (!\is_string($key) || !str_starts_with($key, $prefix) || !\is_array($values)) {
+                continue;
+            }
+
+            $first = $values[0] ?? null;
+
+            if (\is_scalar($first)) {
+                $leaves[$key] = $first;
+            }
+        }
+
+        return $leaves;
+    }
+
+    public function writeLeaf(string $key, ObjectRef $object, string|int|float|bool $value): void
+    {
+        $canonical = $this->canonical($value);
+
+        $written = match ($object->context) {
+            ObjectContext::Option => \update_option($key, $canonical),
+            ObjectContext::Post => \update_post_meta($object->id, $key, $canonical),
+            ObjectContext::User => \update_user_meta($object->id, $key, $canonical),
+            ObjectContext::Term => \update_term_meta($object->id, $key, $canonical),
+        };
+
+        if (!$written) {
+            throw InvalidFieldWrite::metaRefused($key);
+        }
+    }
+
+    public function deleteLeaf(string $key, ObjectRef $object): void
+    {
+        match ($object->context) {
+            ObjectContext::Option => \delete_option($key),
+            ObjectContext::Post => \delete_post_meta($object->id, $key),
+            ObjectContext::User => \delete_user_meta($object->id, $key),
+            ObjectContext::Term => \delete_term_meta($object->id, $key),
+        };
+    }
+
+    /**
+     * The option context's own enumeration: the loaded options, leaf keys only.
+     *
+     * @return array<string, string|int|float|bool>
+     */
+    private function optionLeaves(): array
+    {
+        $all = \wp_load_alloptions();
+
+        $leaves = [];
+
+        foreach ($all as $key => $value) {
+            if (str_starts_with((string) $key, self::OPTION_PREFIX.'/') && \is_scalar($value)) {
+                $leaves[(string) $key] = $value;
+            }
+        }
+
+        return $leaves;
+    }
+
     private function readMeta(ObjectRef $object, string $key): string|int|float|bool|null
     {
         $raw = \get_metadata_raw($object->context->value, $object->id, $key);

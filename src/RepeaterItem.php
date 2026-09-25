@@ -18,6 +18,9 @@ namespace Iniznet\Mahout\Fields;
  */
 final readonly class RepeaterItem
 {
+    /**
+     * @param list<Field> $fields
+     */
     public function __construct(
         public array $fields,
     ) {

@@ -6,6 +6,7 @@ namespace Iniznet\Mahout\Fields\Tests\Integration;
 
 use Iniznet\Mahout\Db\DdlEmitter;
 use Iniznet\Mahout\Fields\CreateFieldItemTable;
+use Iniznet\Mahout\Fields\CreateFieldLeavesTable;
 use Iniznet\Mahout\Fields\CreateFieldValueTable;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 
@@ -34,6 +35,7 @@ final class SchemaMigrationTest extends TestCase
         $dsn = 'mysql:host='.DB_HOST.';dbname='.DB_NAME;
         $pdo = new \PDO($dsn, DB_USER, DB_PASSWORD);
         $pdo->exec('DROP TABLE IF EXISTS '.(defined('DB_PREFIX') ? DB_PREFIX : 'wptests_').'mahout_field_items');
+        $pdo->exec('DROP TABLE IF EXISTS '.(defined('DB_PREFIX') ? DB_PREFIX : 'wptests_').'mahout_field_leaves');
         $pdo->exec('DROP TABLE IF EXISTS '.(defined('DB_PREFIX') ? DB_PREFIX : 'wptests_').'mahout_field_values');
     }
 
@@ -70,22 +72,22 @@ final class SchemaMigrationTest extends TestCase
         self::assertStringContainsString('ENGINE=InnoDB', $showCreate);
     }
 
-    public function testUpCreatesTheItemsTableWithTheDeclaredShape(): void
+    public function testUpCreatesTheLeavesTableWithTheDeclaredShape(): void
     {
         $this->dropTables();
-        (new CreateFieldItemTable($this->connection(), new DdlEmitter()))->up();
+        (new CreateFieldLeavesTable($this->connection(), new DdlEmitter()))->up();
 
-        self::assertTrue($this->tableExists($this->itemsTable));
+        self::assertTrue($this->tableExists($this->leavesTable));
 
-        $columns = $this->columnNames($this->itemsTable);
+        $columns = $this->columnNames($this->leavesTable);
         sort($columns);
 
         self::assertSame(
-            ['field_id', 'object_id', 'object_kind', 'position', 'value_int', 'value_text'],
+            ['address', 'group_id', 'member', 'object_id', 'object_kind', 'value_date', 'value_dec', 'value_int', 'value_text'],
             $columns,
         );
 
-        self::assertStringContainsString('ENGINE=InnoDB', $this->showCreate($this->itemsTable));
+        self::assertStringContainsString('ENGINE=InnoDB', $this->showCreate($this->leavesTable));
     }
 
     public function testDownDropsBothTables(): void
@@ -95,16 +97,16 @@ final class SchemaMigrationTest extends TestCase
         $this->dropTables();
 
         (new CreateFieldValueTable($connection, $emitter))->up();
-        (new CreateFieldItemTable($connection, $emitter))->up();
+        (new CreateFieldLeavesTable($connection, $emitter))->up();
 
         self::assertTrue($this->tableExists($this->valuesTable));
-        self::assertTrue($this->tableExists($this->itemsTable));
+        self::assertTrue($this->tableExists($this->leavesTable));
 
-        (new CreateFieldItemTable($connection, $emitter))->down();
+        (new CreateFieldLeavesTable($connection, $emitter))->down();
         (new CreateFieldValueTable($connection, $emitter))->down();
 
         self::assertFalse($this->tableExists($this->valuesTable));
-        self::assertFalse($this->tableExists($this->itemsTable));
+        self::assertFalse($this->tableExists($this->leavesTable));
     }
 
     public function testTheMigrationNamesAreStable(): void

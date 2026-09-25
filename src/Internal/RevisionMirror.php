@@ -75,7 +75,7 @@ final readonly class RevisionMirror
      * The decoded payload, or null when the post carries no mirror. A
      * non-scalar under the key is broken data and is refused, never coerced.
      *
-     * @return array{hash: string, rows: list<array{field: string, items: list<string|int|float|bool>}|array{field: string, value: string|int|float|bool}>}|null
+     * @return array{hash: string, rows: list<array{field: string, items: list<string|int|float|bool>}|array{field: string, leaves: list<array{address: string, value: string|int|float|bool}>}|array{field: string, value: string|int|float|bool}>}|null
      *
      * @throws InvalidMirrorPayload
      */
@@ -94,7 +94,7 @@ final readonly class RevisionMirror
      * Store one group's row set as the mirror, inside the caller's
      * transaction, and return the hash it now carries.
      *
-     * @param list<array{field: string, items: list<string|int|float|bool>}|array{field: string, value: string|int|float|bool}> $rows
+     * @param list<array{field: string, leaves: list<array{address: string, value: string|int|float|bool}>}|array{field: string, value: string|int|float|bool}> $rows
      *
      * @throws InvalidMirrorPayload
      */

@@ -14,13 +14,13 @@ use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
 use Iniznet\Mahout\Fields\Field;
-use Iniznet\Mahout\Fields\FieldItemsTable;
+use Iniznet\Mahout\Fields\FieldLeavesTable;
 use Iniznet\Mahout\Fields\FieldValuesTable;
+use Iniznet\Mahout\Fields\LeafAddress;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectKind;
 use Iniznet\Mahout\Fields\ObjectRef;
 use Iniznet\Mahout\Fields\RegisteredField;
-use Iniznet\Mahout\Fields\RepeaterCodec;
 use Iniznet\Mahout\Fields\RepeaterField;
 
 /**
@@ -68,7 +68,7 @@ final readonly class FieldMover
         private readonly SqlConnection $connection,
     ) {
         $this->meta = new MetaStorage();
-        $this->table = new TableStorage($gateway, $this->valuesTable(), $this->itemsTable());
+        $this->table = new TableStorage($gateway, $this->valuesTable(), $this->leavesTable());
     }
 
     /**
@@ -82,9 +82,16 @@ final readonly class FieldMover
         $field = $this->assertPostContext($fieldId)->field;
         $moved = 0;
 
+        // A repeater's meta rows are its leaves, keyed by address, so the
+        // discovery is a prefix match — no leading wildcard, served by the
+        // meta_key index — while a scalar field matches its one key exactly.
+        $repeater = $field instanceof RepeaterField;
+        $match = $repeater ? 'LIKE %s' : '= %s';
+        $pattern = $fieldId.'.%';
+
         $select = 'SELECT '.self::META_ID_COLUMN.', '.self::META_OBJECT_COLUMN
             .' FROM '.$this->metaTable()->quoted()
-            .' WHERE '.self::META_KEY_COLUMN.' = %s'
+            .' WHERE '.self::META_KEY_COLUMN.' '.$match
             .' AND '.self::META_ID_COLUMN.' > %d'
             .' ORDER BY '.self::META_ID_COLUMN
             .' LIMIT '.self::CHUNK;
@@ -92,7 +99,9 @@ final readonly class FieldMover
         $cursor = 0;
 
         while (true) {
-            $rows = $this->connection->rowsPrepared($select, $fieldId, $cursor);
+            $rows = $repeater
+                ? $this->connection->rowsPrepared($select, $pattern, $cursor)
+                : $this->connection->rowsPrepared($select, $fieldId, $cursor);
 
             if ([] === $rows) {
                 break;
@@ -112,6 +121,15 @@ final readonly class FieldMover
             $this->gateway->transactional(function () use ($field, $ids, &$moved): void {
                 foreach ($ids as $id) {
                     $object = ObjectRef::post($id);
+
+                    if ($field instanceof RepeaterField) {
+                        $this->writeLeavesFromMeta($field, $object);
+                        $this->dropMetaLeaves($field, $object);
+                        ++$moved;
+
+                        continue;
+                    }
+
                     $raw = $this->meta->read($field, $object);
 
                     if (null === $raw) {
@@ -142,10 +160,10 @@ final readonly class FieldMover
         if ($field instanceof RepeaterField) {
             // One object per chunk: the discovery select serves one row, and
             // the keyed read and keyed delete cover the object's every
-            // position, so a chunk boundary can never split a payload.
+            // address, so a chunk boundary can never split a leaf set.
             while (true) {
                 $rows = $this->gateway->select(GatewayQuery::bounded(
-                    $this->itemsKey($fieldId),
+                    $this->leavesKey($fieldId),
                     1,
                 ));
 
@@ -155,24 +173,20 @@ final readonly class FieldMover
 
                 $this->gateway->transactional(function () use ($field, $rows, &$moved): void {
                     $this->assertKind($rows[0], $field->id);
-                    $object = ObjectRef::post((int) $rows[0]->value(FieldItemsTable::objectIdColumn()));
+                    $object = ObjectRef::post((int) $rows[0]->value(FieldLeavesTable::objectIdColumn()));
 
-                    $items = [];
-                    foreach ($this->table->readItems($field, $object) as $item) {
-                        if (null !== $item['value']) {
-                            $items[] = $item['value'];
+                    foreach ($this->table->readLeaves($field, $object) as $leaf) {
+                        if (null !== $leaf['raw']) {
+                            $this->meta->writeLeaf($leaf['address'], $object, $leaf['raw']);
                         }
                     }
 
-                    if ([] !== $items) {
-                        $this->meta->write($field, $object, RepeaterCodec::encode($items));
-                        ++$moved;
-                    }
+                    ++$moved;
 
-                    // The keyed delete removes every position, including the
+                    // The keyed delete removes every address, including the
                     // row the discovery select served, so the next select
                     // advances to the next object.
-                    $this->table->deleteItems($field, $object);
+                    $this->table->deleteLeaves($field, $object);
                 });
             }
 
@@ -218,14 +232,14 @@ final readonly class FieldMover
     }
 
     /**
-     * The bounded discovery key on the items table: an equality on field_id,
-     * which the items table's own field_id column names and its primary key
+     * The bounded discovery key on the leaves table: an equality on group_id,
+     * which the leaves table's own group_id column names and its primary key
      * serves. The gateway refuses anything unbounded.
      */
-    private function itemsKey(string $fieldId): Row
+    private function leavesKey(string $fieldId): Row
     {
-        return Row::of($this->itemsTable(), [
-            FieldItemsTable::fieldIdColumn() => $fieldId,
+        return Row::of($this->leavesTable(), [
+            FieldLeavesTable::groupIdColumn() => $fieldId,
         ]);
     }
 
@@ -253,27 +267,44 @@ final readonly class FieldMover
         return $row->has($column) ? $row->value($column) : null;
     }
 
-    private function writeTableFromMeta(Field $field, ObjectRef $object, string|int|float|bool $raw): void
+    /**
+     * The Meta leaves of one repeater, canonicalised back through the member
+     * field the address resolves to, written as one addressed leaf set.
+     */
+    private function writeLeavesFromMeta(RepeaterField $field, ObjectRef $object): void
     {
-        if ($field instanceof RepeaterField) {
-            $items = [];
-            foreach (RepeaterCodec::decode((string) $raw) as $item) {
-                if (\is_array($item)) {
-                    throw InvalidFieldWrite::recordedItems($field->id);
-                }
+        $leaves = [];
 
-                $items[] = $item;
+        foreach ($this->meta->leaves($field->id, $object) as $address => $raw) {
+            $parsed = LeafAddress::of((string) $address);
+            $member = $this->memberFieldAt($field, (string) $address);
+            $value = $member->cast($raw);
+
+            if (null === $value) {
+                continue;
             }
 
-            if ([] === $items) {
-                return;
-            }
-
-            $this->table->writeItems($field, $object, $items);
-
-            return;
+            $leaves[] = [
+                'address' => (string) $address,
+                'relative' => $parsed->relative,
+                'member' => $parsed->member,
+                'field' => $member,
+                'value' => $value,
+            ];
         }
 
+        $this->table->writeLeaves($field, $object, $leaves);
+    }
+
+    private function dropMetaLeaves(RepeaterField $field, ObjectRef $object): void
+    {
+        foreach (array_keys($this->meta->leaves($field->id, $object)) as $stale) {
+            $this->meta->deleteLeaf((string) $stale, $object);
+        }
+    }
+
+    private function writeTableFromMeta(Field $field, ObjectRef $object, string|int|float|bool $raw): void
+    {
         $value = $field->cast($raw);
 
         if (null === $value) {
@@ -285,7 +316,11 @@ final readonly class FieldMover
 
     private function assertKind(Row $row, string $fieldId): void
     {
-        $kind = (int) $row->value(FieldValuesTable::objectKindColumn());
+        $column = $row->has(FieldLeavesTable::objectKindColumn())
+            ? FieldLeavesTable::objectKindColumn()
+            : FieldValuesTable::objectKindColumn();
+
+        $kind = (int) $row->value($column);
 
         if ($kind !== ObjectKind::Post->value) {
             throw InvalidFieldWrite::foreignObjectKind($fieldId);
@@ -313,8 +348,70 @@ final readonly class FieldMover
         return FieldValuesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
     }
 
-    private function itemsTable(): Table
+    private function leavesTable(): Table
     {
-        return FieldItemsTable::table($this->connection->prefix(), $this->connection->charsetCollate());
+        return FieldLeavesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
+    }
+
+    /**
+     * The member field one leaf's address resolves to, walked against the
+     * declaration: positions choose items, member names choose fields, and a
+     * nested repeater member becomes the walked level. Member ids are unique
+     * across the subtree, so the walk is unambiguous.
+     */
+    private function memberFieldAt(RepeaterField $root, string $fullAddress): Field
+    {
+        $address = LeafAddress::of($fullAddress);
+        $current = $root;
+
+        if ('' === $address->relative) {
+            throw InvalidFieldWrite::badRepeaterAddress($root->id);
+        }
+
+        $segments = explode('.', $address->relative);
+        $index = 0;
+
+        while (true) {
+            // A position is present at every level; consume it.
+            if (!isset($segments[$index]) || !ctype_digit($segments[$index])) {
+                throw InvalidFieldWrite::badRepeaterAddress($root->id);
+            }
+
+            ++$index;
+
+            if (!isset($segments[$index])) {
+                if (!$current->item instanceof Field) {
+                    throw InvalidFieldWrite::badRepeaterAddress($root->id);
+                }
+
+                return $current->item;
+            }
+
+            $member = null;
+
+            foreach ($current->members() as $candidate) {
+                if ($candidate->id === $segments[$index]) {
+                    $member = $candidate;
+
+                    break;
+                }
+            }
+
+            if (null === $member) {
+                throw InvalidFieldWrite::badRepeaterAddress($root->id);
+            }
+
+            ++$index;
+
+            if (!$member instanceof RepeaterField) {
+                if (isset($segments[$index])) {
+                    throw InvalidFieldWrite::badRepeaterAddress($root->id);
+                }
+
+                return $member;
+            }
+
+            $current = $member;
+        }
     }
 }

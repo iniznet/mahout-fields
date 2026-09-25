@@ -26,7 +26,7 @@ final class MirrorCodecTest extends TestCase
         $decoded = json_decode($encoded, true, 512, JSON_THROW_ON_ERROR);
 
         self::assertSame(1, $decoded['v']);
-        self::assertSame(1, $decoded['schema']);
+        self::assertSame(2, $decoded['schema'], 'the leaf row shape is schema 2');
         self::assertArrayHasKey('hash', $decoded);
         self::assertArrayHasKey('rows', $decoded);
     }

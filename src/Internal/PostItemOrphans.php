@@ -8,7 +8,7 @@ use Iniznet\Mahout\Db\Contracts\OrphanSource;
 use Iniznet\Mahout\Db\Contracts\SqlConnection;
 use Iniznet\Mahout\Db\Row;
 use Iniznet\Mahout\Db\Table;
-use Iniznet\Mahout\Fields\FieldItemsTable;
+use Iniznet\Mahout\Fields\FieldLeavesTable;
 use Iniznet\Mahout\Fields\ObjectKind;
 
 /**
@@ -39,8 +39,8 @@ final readonly class PostItemOrphans implements OrphanSource
     public function keyForPost(int $postId): Row
     {
         return Row::of($this->table, [
-            FieldItemsTable::objectKindColumn() => ObjectKind::Post->value,
-            FieldItemsTable::objectIdColumn() => $postId,
+            FieldLeavesTable::objectKindColumn() => ObjectKind::Post->value,
+            FieldLeavesTable::objectIdColumn() => $postId,
         ]);
     }
 
@@ -55,9 +55,9 @@ final readonly class PostItemOrphans implements OrphanSource
 
         $statement = \sprintf(
             'SELECT DISTINCT %s FROM %s WHERE %s IN (%s)',
-            FieldItemsTable::objectIdColumn(),
+            FieldLeavesTable::objectIdColumn(),
             $this->table->name->quoted(),
-            FieldItemsTable::objectIdColumn(),
+            FieldLeavesTable::objectIdColumn(),
             \implode(', ', \array_fill(0, \count($ids), '%d')),
         );
 
@@ -65,7 +65,7 @@ final readonly class PostItemOrphans implements OrphanSource
 
         $existing = [];
         foreach ($rows as $row) {
-            $existing[] = (int) $row[FieldItemsTable::objectIdColumn()];
+            $existing[] = (int) $row[FieldLeavesTable::objectIdColumn()];
         }
 
         return \array_values(\array_unique($existing));
@@ -74,7 +74,7 @@ final readonly class PostItemOrphans implements OrphanSource
     #[\Override]
     public function postOf(Row $row): int
     {
-        return (int) $row->value(FieldItemsTable::objectIdColumn());
+        return (int) $row->value(FieldLeavesTable::objectIdColumn());
     }
 
     #[\Override]

@@ -12,7 +12,7 @@ use Iniznet\Mahout\Db\Table;
 use Iniznet\Mahout\Fields\Contracts\FieldReader;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Contracts\FieldWriter;
-use Iniznet\Mahout\Fields\FieldItemsTable;
+use Iniznet\Mahout\Fields\FieldLeavesTable;
 use Iniznet\Mahout\Fields\FieldValuesTable;
 use Iniznet\Mahout\Fields\Internal\GroupSnapshot;
 use Iniznet\Mahout\Fields\Internal\MetaStorage;
@@ -42,7 +42,7 @@ abstract class TestCase extends \WP_UnitTestCase
 
     protected Table $valuesTable;
 
-    protected Table $itemsTable;
+    protected Table $leavesTable;
 
     private WpdbConnection $connection;
 
@@ -57,13 +57,13 @@ abstract class TestCase extends \WP_UnitTestCase
         $this->connection = WpdbConnection::inWordPress();
         $this->gateway = new WpdbTableGateway($this->connection);
         $this->valuesTable = FieldValuesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
-        $this->itemsTable = FieldItemsTable::table($this->connection->prefix(), $this->connection->charsetCollate());
+        $this->leavesTable = FieldLeavesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
 
         $this->dropTables();
         $this->createTables();
 
         $meta = new MetaStorage();
-        $table = new TableStorage($this->gateway, $this->valuesTable, $this->itemsTable);
+        $table = new TableStorage($this->gateway, $this->valuesTable, $this->leavesTable);
         $mirror = new RevisionMirror();
         $this->registry = new \Iniznet\Mahout\Fields\FieldRegistry();
         $this->reader = new \Iniznet\Mahout\Fields\FieldReader($this->registry, $meta, $table, $mirror);
@@ -96,7 +96,7 @@ abstract class TestCase extends \WP_UnitTestCase
         return new RevisionRestorer(
             $this->registry,
             $this->gateway,
-            new TableStorage($this->gateway, $this->valuesTable, $this->itemsTable),
+            new TableStorage($this->gateway, $this->valuesTable, $this->leavesTable),
             $this->mirror,
         );
     }
@@ -145,17 +145,17 @@ abstract class TestCase extends \WP_UnitTestCase
      */
     protected function rawValueRow(string $fieldId, int $objectId): ?array
     {
-        return $this->rawRow($this->valuesTable, $fieldId, $objectId, null);
-    }
+        global $wpdb;
 
-    /**
-     * One raw items row by position.
-     *
-     * @return array<string, string|null>|null
-     */
-    protected function rawItemRow(string $fieldId, int $objectId, int $position): ?array
-    {
-        return $this->rawRow($this->itemsTable, $fieldId, $objectId, $position);
+        $table = $this->valuesTable;
+
+        $statement = 'SELECT * FROM '.$table->name->quoted()
+            .' WHERE '.$table->column('field_id')->name->quoted().' = %s'
+            .' AND '.$table->column('object_id')->name->quoted().' = %d';
+
+        $row = $wpdb->get_row($wpdb->prepare($statement, $fieldId, $objectId), ARRAY_A);
+
+        return is_array($row) ? $row : null;
     }
 
     /** @return list<string> */
@@ -211,35 +211,31 @@ abstract class TestCase extends \WP_UnitTestCase
         global $wpdb;
 
         $wpdb->query('DROP TABLE IF EXISTS '.$this->valuesTable->name->quoted());
-        $wpdb->query('DROP TABLE IF EXISTS '.$this->itemsTable->name->quoted());
+        $wpdb->query('DROP TABLE IF EXISTS '.$this->leavesTable->name->quoted());
     }
 
     protected function createTables(): void
     {
         $emitter = new DdlEmitter();
         $this->connection->execute($emitter->create($this->valuesTable));
-        $this->connection->execute($emitter->create($this->itemsTable));
+        $this->connection->execute($emitter->create($this->leavesTable));
     }
 
     /**
      * @return array<string, string|null>|null
      */
-    private function rawRow(Table $table, string $fieldId, int $objectId, ?int $position): ?array
+    protected function rawLeaf(string $groupId, int $objectId, string $relative): ?array
     {
         global $wpdb;
 
+        $table = $this->leavesTable;
+
         $statement = 'SELECT * FROM '.$table->name->quoted()
-            .' WHERE '.$table->column('field_id')->name->quoted().' = %s'
-            .' AND '.$table->column('object_id')->name->quoted().' = %d';
+            .' WHERE '.$table->column('group_id')->name->quoted().' = %s'
+            .' AND '.$table->column('object_id')->name->quoted().' = %d'
+            .' AND '.$table->column('address')->name->quoted().' = %s';
 
-        $values = [$fieldId, $objectId];
-
-        if (null !== $position) {
-            $statement .= ' AND '.$table->column('position')->name->quoted().' = %d';
-            $values[] = $position;
-        }
-
-        $row = $wpdb->get_row($wpdb->prepare($statement, ...$values), ARRAY_A);
+        $row = $wpdb->get_row($wpdb->prepare($statement, $groupId, $objectId, $relative), ARRAY_A);
 
         return is_array($row) ? $row : null;
     }

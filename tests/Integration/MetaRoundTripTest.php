@@ -129,7 +129,7 @@ final class MetaRoundTripTest extends TestCase
 
         try {
             $meta = new \Iniznet\Mahout\Fields\Internal\MetaStorage();
-            $table = new \Iniznet\Mahout\Fields\Internal\TableStorage($this->gateway, $this->valuesTable, $this->itemsTable);
+            $table = new \Iniznet\Mahout\Fields\Internal\TableStorage($this->gateway, $this->valuesTable, $this->leavesTable);
             $mirror = new \Iniznet\Mahout\Fields\Internal\RevisionMirror();
             $writer = new \Iniznet\Mahout\Fields\FieldWriter(
                 $registry,

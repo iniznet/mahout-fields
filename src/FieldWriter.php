@@ -10,6 +10,7 @@ use Iniznet\Mahout\Fields\Exception\ConcurrentEditLost;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldValue;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
+use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Exception\RepeaterTooLarge;
 use Iniznet\Mahout\Fields\Internal\GroupSnapshot;
 use Iniznet\Mahout\Fields\Internal\RevisionMirror;
@@ -61,7 +62,7 @@ final readonly class FieldWriter implements FieldWriterContract
     }
 
     /**
-     * @param list<string|int|float|bool> $items
+     * @param array<mixed, mixed> $items
      */
     public function setItems(string $fieldId, ObjectRef $object, array $items): void
     {
@@ -76,7 +77,7 @@ final readonly class FieldWriter implements FieldWriterContract
 
         $this->assertItemCount($field, $items);
 
-        $sanitised = $this->sanitisedItems($field, $items);
+        $sanitised = $this->sanitisedItems($field, $items, $field->id);
 
         \do_action(Hooks::BEFORE_SAVE, $fieldId, $items, $field, $object->id);
 
@@ -102,7 +103,7 @@ final readonly class FieldWriter implements FieldWriterContract
     }
 
     /**
-     * @param array<string, string|int|float|bool|list<string|int|float|bool>|null> $values
+     * @param array<string, string|int|float|bool|list<array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}>|null> $values
      */
     public function writeGroup(string $groupId, ObjectRef $object, array $values, string $expectedHash): string
     {
@@ -143,8 +144,7 @@ final readonly class FieldWriter implements FieldWriterContract
 
             if ($field instanceof RepeaterField) {
                 if (\is_array($value)) {
-                    $this->assertItemCount($field, $value);
-                    $sanitised[$fieldId] = $this->sanitisedItems($field, $value);
+                    $sanitised[$fieldId] = $this->sanitisedItems($field, $value, $field->id);
                 } else {
                     $sanitised[$fieldId] = null;
                 }
@@ -164,7 +164,7 @@ final readonly class FieldWriter implements FieldWriterContract
      * group with no Table-bound field) writes without one, and its hash is
      * the empty row set's.
      *
-     * @param array<string, string|int|float|bool|list<string|int|float|bool>|null> $values
+     * @param array<string, string|int|float|bool|list<array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}>|null> $values
      */
     private function storeGroup(FieldGroup $group, ObjectRef $object, array $values, string $expectedHash): string
     {
@@ -226,7 +226,7 @@ final readonly class FieldWriter implements FieldWriterContract
         \do_action(Hooks::BEFORE_SAVE, $fieldId, $value, $field, $object->id);
 
         $sanitised = $field instanceof RepeaterField
-            ? (\is_array($value) ? $this->sanitisedItems($field, $value) : null)
+            ? (\is_array($value) ? $this->sanitisedItems($field, $value, $field->id) : null)
             : $this->sanitisedScalar($field, \is_scalar($value) ? $value : null, $object->id);
 
         $group = $registered->group;
@@ -313,12 +313,12 @@ final readonly class FieldWriter implements FieldWriterContract
     }
 
     /**
-     * The items arrive sanitised -- sanitisation happened once, in the caller's
-     * guard step -- so this is the store shape only. Null removes.
+     * The leaves arrive sanitised — sanitisation happened once, in the
+     * caller's guard step — so this is the store shape only. Null removes.
      *
-     * @param list<string|int|float|bool>|null $items
+     * @param list<array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}>|null $leaves
      */
-    private function storeSanitisedItems(RegisteredField $registered, ObjectRef $object, ?array $items): void
+    private function storeSanitisedItems(RegisteredField $registered, ObjectRef $object, ?array $leaves): void
     {
         $field = $registered->field;
 
@@ -326,16 +326,42 @@ final readonly class FieldWriter implements FieldWriterContract
             throw InvalidFieldWrite::itemsIntoScalar($registered->field->id);
         }
 
-        if (null === $items) {
+        if (null === $leaves || [] === $leaves) {
             $this->remove($registered, $object);
 
             return;
         }
 
         match ($registered->storage) {
-            StorageTarget::Meta => $this->meta->write($field, $object, RepeaterCodec::encode($items)),
-            StorageTarget::Table => $this->table->writeItems($field, $object, $items),
+            StorageTarget::Meta => $this->storeMetaLeaves($field, $object, $leaves),
+            StorageTarget::Table => $this->table->writeLeaves($field, $object, $leaves),
+            StorageTarget::Carried => throw InvalidStorageCombination::carriedOutsideRepeater($field->id),
         };
+    }
+
+    /**
+     * The Meta target's replace: the stored leaves under the root go first,
+     * by exact key — the enumeration, never a LIKE query — then the current
+     * leaves land.
+     *
+     * @param list<array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}> $leaves
+     */
+    private function storeMetaLeaves(RepeaterField $field, ObjectRef $object, array $leaves): void
+    {
+        foreach (array_keys($this->meta->leaves($field->id, $object)) as $stale) {
+            $this->meta->deleteLeaf((string) $stale, $object);
+        }
+
+        foreach ($leaves as $leaf) {
+            $this->meta->writeLeaf($leaf['address'], $object, $leaf['value']);
+        }
+    }
+
+    private function dropMetaLeaves(RepeaterField $field, ObjectRef $object): void
+    {
+        foreach (array_keys($this->meta->leaves($field->id, $object)) as $stale) {
+            $this->meta->deleteLeaf((string) $stale, $object);
+        }
     }
 
     /**
@@ -365,11 +391,12 @@ final readonly class FieldWriter implements FieldWriterContract
         match ($registered->storage) {
             StorageTarget::Meta => $this->meta->write($registered->field, $object, $sanitised),
             StorageTarget::Table => $this->table->write($registered->field, $object, $sanitised),
+            StorageTarget::Carried => throw InvalidStorageCombination::carriedOutsideRepeater($registered->field->id),
         };
     }
 
     /**
-     * @param list<mixed> $items
+     * @param array<mixed, mixed> $items
      */
     private function assertItemCount(RepeaterField $field, array $items): void
     {
@@ -379,38 +406,118 @@ final readonly class FieldWriter implements FieldWriterContract
     }
 
     /**
-     * @param list<mixed> $items
+     * Flatten the submitted item shape into sanitised leaves, one per scalar
+     * the structure carries. The shape mirrors the declaration: a scalar-item
+     * repeater takes a list of scalars, a composite one takes a list of
+     * member-keyed arrays, a nested repeater member takes a list — anything
+     * else is a loud refusal before the first statement runs. A null leaf is
+     * absence, not a stored empty value.
      *
-     * @return list<string|int|float|bool>
+     * @param array<mixed, mixed> $items
+     *
+     * @return list<array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}>
      */
-    private function sanitisedItems(RepeaterField $field, array $items): array
+    private function sanitisedItems(RepeaterField $field, array $items, string $prefix): array
     {
-        $scalar = $field->item instanceof Field ? $field->item : null;
+        $this->assertItemCount($field, $items);
 
-        if (null === $scalar) {
-            throw InvalidFieldWrite::badRepeaterAddress($field->id);
-        }
+        $leaves = [];
+        $scalarItem = $field->item instanceof Field;
 
-        $sanitised = [];
-        foreach ($items as $index => $item) {
-            $value = $scalar->sanitise(\is_scalar($item) ? $item : '');
-
-            if (null === $value) {
-                throw InvalidFieldValue::refused($field->id, 'repeater item', (string) $index, 'the item sanitised to nothing');
+        foreach ($items as $position => $item) {
+            if (!\ctype_digit((string) $position)) {
+                throw InvalidFieldWrite::badRepeaterAddress($field->id);
             }
 
-            $sanitised[] = $value;
+            $base = $prefix.'.'.$position;
+
+            if ($scalarItem) {
+                if (null === $item) {
+                    continue;
+                }
+
+                if (!\is_scalar($item)) {
+                    throw InvalidFieldWrite::badRepeaterAddress($field->id);
+                }
+
+                $leaves[] = $this->leaf($field, $base, '', $field->item, $item);
+
+                continue;
+            }
+
+            if (!\is_array($item)) {
+                throw InvalidFieldWrite::badRepeaterAddress($field->id);
+            }
+
+            foreach ($field->members() as $member) {
+                $value = $item[$member->id] ?? null;
+                $address = $base.'.'.$member->id;
+
+                if ($member instanceof RepeaterField) {
+                    if (null === $value) {
+                        continue;
+                    }
+
+                    if (!\is_array($value)) {
+                        throw InvalidFieldWrite::badRepeaterAddress($field->id);
+                    }
+
+                    $leaves = [...$leaves, ...$this->sanitisedItems($member, $value, $address)];
+
+                    continue;
+                }
+
+                if (null === $value) {
+                    continue;
+                }
+
+                if (!\is_scalar($value)) {
+                    throw InvalidFieldWrite::badRepeaterAddress($field->id);
+                }
+
+                $leaves[] = $this->leaf($field, $address, $member->id, $member, $value);
+            }
         }
 
-        return $sanitised;
+        return $leaves;
+    }
+
+    /**
+     * One sanitised leaf: the address is validated against the grammar and
+     * the byte cap here, at the one moment it is assembled, and the member's
+     * own sanitiser runs exactly once.
+     *
+     * @return array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}
+     */
+    private function leaf(RepeaterField $root, string $address, string $member, Field $memberField, string|int|float|bool $value): array
+    {
+        LeafAddress::of($address);
+
+        $sanitised = $memberField->sanitise($value);
+
+        if (null === $sanitised) {
+            throw InvalidFieldValue::refused($root->id, 'repeater leaf', $address, 'the leaf sanitised to nothing');
+        }
+
+        return [
+            'address' => $address,
+            'relative' => LeafAddress::of($address)->relative,
+            'member' => $member,
+            'field' => $memberField,
+            'value' => $sanitised,
+        ];
     }
 
     private function remove(RegisteredField $registered, ObjectRef $object): void
     {
         $field = $registered->field;
 
-        if ($field instanceof RepeaterField && StorageTarget::Table === $registered->storage) {
-            $this->table->deleteItems($field, $object);
+        if ($field instanceof RepeaterField) {
+            match ($registered->storage) {
+                StorageTarget::Meta => $this->dropMetaLeaves($field, $object),
+                StorageTarget::Table => $this->table->deleteLeaves($field, $object),
+                StorageTarget::Carried => throw InvalidStorageCombination::carriedOutsideRepeater($field->id),
+            };
 
             return;
         }
@@ -418,6 +525,7 @@ final readonly class FieldWriter implements FieldWriterContract
         match ($registered->storage) {
             StorageTarget::Meta => $this->meta->delete($field, $object),
             StorageTarget::Table => $this->table->delete($field, $object),
+            StorageTarget::Carried => throw InvalidStorageCombination::carriedOutsideRepeater($field->id),
         };
     }
 

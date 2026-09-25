@@ -8,7 +8,6 @@ use Iniznet\Mahout\Fields\Exception\FieldNotFound;
 use Iniznet\Mahout\Fields\Exception\GroupNotFound;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidMirrorPayload;
-use Iniznet\Mahout\Fields\Exception\InvalidRepeaterPayload;
 use Iniznet\Mahout\Fields\ObjectRef;
 
 /**
@@ -27,14 +26,15 @@ interface FieldReader
     public function value(string $fieldId, ObjectRef $object): string|int|float|bool|null;
 
     /**
-     * A repeater's items in declared order. On the Meta target this decodes
-     * the versioned payload; on the Table target it reads the items table.
+     * A repeater's items in declared order, assembled from the leaves. A
+     * scalar-item repeater reads as a list of scalars; a composite item reads
+     * as a member-keyed record, and a nested repeater member appears in the
+     * record as its own list.
      *
-     * @return list<string|int|float|bool|null>|list<array<string, string|int|float|bool>>
+     * @return list<string|int|float|bool|null>|list<array<string, string|int|float|bool|list<mixed>|null>>
      *
      * @throws FieldNotFound
      * @throws InvalidFieldContext
-     * @throws InvalidRepeaterPayload
      */
     public function items(string $fieldId, ObjectRef $object): array;
 

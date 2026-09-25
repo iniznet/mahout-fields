@@ -9,6 +9,7 @@ use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
 use Iniznet\Mahout\Fields\Exception\InvalidMirrorPayload;
 use Iniznet\Mahout\Fields\Field;
 use Iniznet\Mahout\Fields\FieldGroup;
+use Iniznet\Mahout\Fields\LeafAddress;
 use Iniznet\Mahout\Fields\ObjectContext;
 use Iniznet\Mahout\Fields\ObjectRef;
 use Iniznet\Mahout\Fields\RepeaterField;
@@ -117,7 +118,7 @@ final readonly class RevisionRestorer
     }
 
     /**
-     * @param array{value?: string|int|float|bool, items?: list<string|int|float|bool>}|null $row
+     * @param array<string, mixed>|null $row
      *
      * @throws InvalidMirrorPayload
      */
@@ -131,26 +132,113 @@ final readonly class RevisionRestorer
 
         // The shape was validated once at decode; the restorer trusts it.
         if ($field instanceof RepeaterField) {
-            $items = $row['items'] ?? [];
+            $leaves = \is_array($row['leaves'] ?? null) ? $row['leaves'] : [];
 
-            $this->table->writeItems($field, $object, $items);
+            $this->table->writeLeaves($field, $object, $this->restoredLeaves($field, $leaves));
 
             return;
         }
 
         $value = $row['value'] ?? null;
 
-        if (null === $value) {
+        if (!\is_scalar($value)) {
             throw InvalidMirrorPayload::malformedRow($field->id, 0);
         }
 
         $this->table->write($field, $object, $value);
     }
 
+    /**
+     * The restored leaf set, each leaf's member field resolved against the
+     * declaration the address walks. The member field     /**
+     * The restored leaf set, each leaf's member field resolved against the
+     * declaration the address walks. The member field carries the leaf's
+     * column and canonicalisation; the address carries the ancestry. The
+     * leaves arrive from the decoded mirror and are shaped here, loudly.
+     *
+     * @param array<mixed, mixed> $restored
+     *
+     * @return list<array{address: string, relative: string, member: string, field: Field, value: string|int|float|bool}>
+     */
+    private function restoredLeaves(RepeaterField $root, array $restored): array
+    {
+        $leaves = [];
+
+        foreach ($restored as $index => $leaf) {
+            if (!\is_array($leaf) || !\is_string($leaf['address'] ?? null) || !\is_scalar($leaf['value'] ?? null)) {
+                throw InvalidMirrorPayload::malformedRow($root->id, (int) $index);
+            }
+
+            $address = $root->id.'.'.$leaf['address'];
+            $parsed = LeafAddress::of($address);
+            $member = $this->memberFieldAt($root, $address);
+
+            $leaves[] = [
+                'address' => $address,
+                'relative' => $parsed->relative,
+                'member' => $parsed->member,
+                'field' => $member,
+                'value' => $leaf['value'],
+            ];
+        }
+
+        return $leaves;
+    }
+
+    private function memberFieldAt(RepeaterField $root, string $fullAddress): Field
+    {
+        $address = LeafAddress::of($fullAddress);
+        $current = $root;
+        $segments = explode('.', $address->relative);
+        $index = 0;
+
+        while (true) {
+            if (!isset($segments[$index]) || !ctype_digit($segments[$index])) {
+                throw InvalidMirrorPayload::malformedRow($root->id, 0);
+            }
+
+            ++$index;
+
+            if (!isset($segments[$index])) {
+                if (!$current->item instanceof Field) {
+                    throw InvalidMirrorPayload::malformedRow($root->id, 0);
+                }
+
+                return $current->item;
+            }
+
+            $member = null;
+
+            foreach ($current->members() as $candidate) {
+                if ($candidate->id === $segments[$index]) {
+                    $member = $candidate;
+
+                    break;
+                }
+            }
+
+            if (null === $member) {
+                throw InvalidMirrorPayload::malformedRow($root->id, 0);
+            }
+
+            ++$index;
+
+            if (!$member instanceof RepeaterField) {
+                if (isset($segments[$index])) {
+                    throw InvalidMirrorPayload::malformedRow($root->id, 0);
+                }
+
+                return $member;
+            }
+
+            $current = $member;
+        }
+    }
+
     private function removeRow(Field $field, ObjectRef $object): void
     {
         if ($field instanceof RepeaterField) {
-            $this->table->deleteItems($field, $object);
+            $this->table->deleteLeaves($field, $object);
 
             return;
         }

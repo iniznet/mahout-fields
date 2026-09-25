@@ -7,6 +7,7 @@ namespace Iniznet\Mahout\Fields;
 use Iniznet\Mahout\Fields\Contracts\FieldReader as FieldReaderContract;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldContext;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
+use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Internal\MetaStorage;
 use Iniznet\Mahout\Fields\Internal\RevisionMirror;
 use Iniznet\Mahout\Fields\Internal\TableStorage;
@@ -37,16 +38,15 @@ final readonly class FieldReader implements FieldReaderContract
         $field = $registered->field;
 
         if ($field instanceof RepeaterField) {
-            // A Meta repeater's stored value is the versioned payload; a
-            // Table repeater has no value row at all.
-            if (StorageTarget::Table === $registered->storage) {
-                throw InvalidFieldWrite::jsonIntoItemsTable($field->id);
-            }
+            // A repeater has no scalar value: its leaves are read through
+            // items(), on either target.
+            throw InvalidFieldWrite::scalarIntoRepeater($field->id);
         }
 
         $raw = match ($registered->storage) {
             StorageTarget::Meta => $this->meta->read($field, $object),
             StorageTarget::Table => $this->table->read($field, $object),
+            StorageTarget::Carried => throw InvalidStorageCombination::carriedOutsideRepeater($field->id),
         };
 
         $value = $field->cast($raw);
@@ -79,43 +79,124 @@ final readonly class FieldReader implements FieldReaderContract
             throw InvalidFieldWrite::itemsIntoScalar($fieldId);
         }
 
-        return match ($registered->storage) {
-            StorageTarget::Meta => $this->metaItems($field, $object),
-            StorageTarget::Table => $this->tableItems($field, $object),
-        };
+        return $this->assemble($field, $this->repeaterLeaves($field, $object, $registered->storage), $field->id);
     }
 
     /**
-     * A record item is a repeater whose items carry more than one value, stored
-     * as the versioned envelope's records; the generic items table cannot hold
-     * it, which the storage contract states and the registry refuses.
+     * The leaves, from whichever target holds them, normalised to one shape.
      *
-     * @return list<string|int|float|bool|null>|list<array<string, string|int|float|bool>>
+     * @return list<array{address: string, member: string, raw: string|int|float|bool|null}>
      */
-    private function metaItems(RepeaterField $field, ObjectRef $object): array
+    private function repeaterLeaves(RepeaterField $field, ObjectRef $object, StorageTarget $storage): array
     {
-        $payload = $this->meta->read($field, $object);
+        $leaves = StorageTarget::Table === $storage
+            ? $this->table->readLeaves($field, $object)
+            : $this->metaLeafRows($field, $object);
 
-        if (null === $payload || '' === $payload) {
-            return [];
-        }
+        usort($leaves, static fn (array $a, array $b): int => LeafAddress::compare($a['address'], $b['address']));
 
-        if (!\is_string($payload)) {
-            throw Exception\InvalidRepeaterPayload::notAnEnvelope();
-        }
-
-        return RepeaterCodec::decode($payload);
+        return $leaves;
     }
 
     /**
-     * @return list<string|int|float|bool|null>
+     * The Meta target's leaves: the object's own meta set enumerated by the
+     * adapter, keyed by full address.
+     *
+     * @return list<array{address: string, member: string, raw: string|int|float|bool|null}>
      */
-    private function tableItems(RepeaterField $field, ObjectRef $object): array
+    private function metaLeafRows(RepeaterField $field, ObjectRef $object): array
     {
-        return \array_map(
-            static fn (array $item): string|int|float|bool|null => $item['value'],
-            $this->table->readItems($field, $object),
-        );
+        $rows = [];
+
+        foreach ($this->meta->leaves($field->id, $object) as $address => $raw) {
+            $rows[] = [
+                'address' => (string) $address,
+                'member' => LeafAddress::memberOf((string) $address),
+                'raw' => $raw,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Assemble the declared shape from the leaves: positions derive from the
+     * addresses, a scalar item is its one leaf, a composite item is its
+     * members' leaves, and a nested repeater member recurses. Absent members
+     * read null; the structure, not the storage, carries the nesting.
+     *
+     * @param list<array{address: string, member: string, raw: string|int|float|bool|null}> $leaves
+     *
+     * @return list<string|int|float|bool|null>|list<array<string, string|int|float|bool|list<mixed>|null>>
+     */
+    private function assemble(RepeaterField $field, array $leaves, string $prefix): array
+    {
+        $positions = [];
+
+        foreach ($leaves as $leaf) {
+            if (!str_starts_with($leaf['address'], $prefix.'.')) {
+                continue;
+            }
+
+            $rest = substr($leaf['address'], strlen($prefix) + 1);
+            $position = (int) strtok($rest, '.');
+            $positions[$position] = true;
+        }
+
+        $positions = array_keys($positions);
+        sort($positions);
+
+        $items = [];
+
+        foreach ($positions as $position) {
+            $base = $prefix.'.'.$position;
+            $items[] = $field->item instanceof Field
+                ? $this->leafValue($field->item, $this->leafAt($leaves, $base))
+                : $this->compositeItem($field, $leaves, $base);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<array{address: string, member: string, raw: string|int|float|bool|null}> $leaves
+     *
+     * @return array<string, string|int|float|bool|list<mixed>|null>
+     */
+    private function compositeItem(RepeaterField $field, array $leaves, string $base): array
+    {
+        $item = [];
+
+        foreach ($field->members() as $member) {
+            if ($member instanceof RepeaterField) {
+                $item[$member->id] = $this->assemble($member, $leaves, $base.'.'.$member->id);
+
+                continue;
+            }
+
+            $item[$member->id] = $this->leafValue($member, $this->leafAt($leaves, $base.'.'.$member->id));
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param list<array{address: string, member: string, raw: string|int|float|bool|null}> $leaves
+     */
+    private function leafAt(array $leaves, string $address): string|int|float|bool|null
+    {
+        foreach ($leaves as $leaf) {
+            if ($leaf['address'] === $address) {
+                return $leaf['raw'];
+            }
+        }
+
+        return null;
+    }
+
+    private function leafValue(Field $member, string|int|float|bool|null $raw): string|int|float|bool|null
+    {
+        return $member->cast($raw);
     }
 
     public function hash(string $groupId, ObjectRef $object): string

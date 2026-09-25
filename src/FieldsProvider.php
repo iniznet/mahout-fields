@@ -50,10 +50,10 @@ final class FieldsProvider implements ServiceProvider
         $emitter = new DdlEmitter();
 
         $valuesTable = FieldValuesTable::table($connection->prefix(), $connection->charsetCollate());
-        $itemsTable = FieldItemsTable::table($connection->prefix(), $connection->charsetCollate());
+        $leavesTable = FieldLeavesTable::table($connection->prefix(), $connection->charsetCollate());
 
         $meta = new MetaStorage();
-        $table = new TableStorage($gateway, $valuesTable, $itemsTable);
+        $table = new TableStorage($gateway, $valuesTable, $leavesTable);
         $mirror = new RevisionMirror();
         $registry = new FieldRegistry();
 
@@ -61,8 +61,8 @@ final class FieldsProvider implements ServiceProvider
         $container->set(service: new FieldReader($registry, $meta, $table, $mirror), id: FieldReaderContract::class);
         $container->set(service: new FieldWriter($registry, $meta, $table, $gateway, $mirror, new GroupSnapshot($registry, $table)), id: FieldWriterContract::class);
 
-        $this->attachMigrations($connection, $emitter);
-        $this->attachOrphanSources($connection, $valuesTable, $itemsTable);
+        $this->attachMigrations($connection, $emitter, $container->get(TableGateway::class));
+        $this->attachOrphanSources($connection, $valuesTable, $leavesTable);
         $this->attachRestore(new RevisionRestorer($registry, $gateway, $table, $mirror));
         $this->attachPrivacy($registry, $container);
     }
@@ -96,14 +96,16 @@ final class FieldsProvider implements ServiceProvider
      * filter, in register() -- which runs for every provider before any boot,
      * so the order the theme lists the two providers in cannot lose them.
      */
-    private function attachMigrations(SqlConnection $connection, DdlEmitter $emitter): void
+    private function attachMigrations(SqlConnection $connection, DdlEmitter $emitter, TableGateway $gateway): void
     {
         $valueTable = new CreateFieldValueTable($connection, $emitter);
         $itemTable = new CreateFieldItemTable($connection, $emitter);
+        $leavesTable = new CreateFieldLeavesTable($connection, $emitter);
+        $flatten = new FlattenFieldItemsToAddresses($connection, $gateway, $emitter);
 
         \add_filter(
             DbHooks::MIGRATIONS,
-            static fn (array $migrations): array => [...$migrations, $valueTable, $itemTable],
+            static fn (array $migrations): array => [...$migrations, $valueTable, $itemTable, $leavesTable, $flatten],
             priority: 10,
             accepted_args: 1,
         );
@@ -160,10 +162,10 @@ final class FieldsProvider implements ServiceProvider
     private function attachOrphanSources(
         SqlConnection $connection,
         Table $valuesTable,
-        Table $itemsTable,
+        Table $leavesTable,
     ): void {
         $valueSource = new PostValueOrphans($connection, $valuesTable);
-        $itemSource = new PostItemOrphans($connection, $itemsTable);
+        $itemSource = new PostItemOrphans($connection, $leavesTable);
 
         \add_filter(
             DbHooks::ORPHAN_SOURCES,

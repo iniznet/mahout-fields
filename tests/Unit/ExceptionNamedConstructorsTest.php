@@ -23,7 +23,6 @@ use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 use Iniznet\Mahout\Fields\Exception\MahoutException;
 use Iniznet\Mahout\Fields\Exception\RepeaterTooLarge;
 use Iniznet\Mahout\Fields\Exception\UnresolvableFieldStyles;
-use Iniznet\Mahout\Fields\RepeaterCodec;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 
 /**
@@ -160,11 +159,6 @@ final class ExceptionNamedConstructorsTest extends TestCase
 
     public function testRepeaterTooLargeCarriesSizeAndCap(): void
     {
-        $payload = RepeaterTooLarge::payload(70000, RepeaterCodec::MAX_BYTES);
-
-        self::assertSame(70000, $payload->size());
-        self::assertSame(RepeaterCodec::MAX_BYTES, $payload->cap());
-
         $items = RepeaterTooLarge::items(5, 2);
 
         self::assertSame(5, $items->size());
