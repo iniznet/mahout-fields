@@ -32,6 +32,13 @@ final readonly class FieldStyles
     public const string VERSION = '1.1.0';
 
     /**
+     * The stylesheet's path inside a host's vendor directory, named as the
+     * package's own Composer install — the path a symlinked dev checkout
+     * serves and the one `get_theme_file_path()` can name.
+     */
+    private const string VENDOR_PATH = 'vendor/iniznet/mahout-fields/resources/fields.css';
+
+    /**
      * @param ?string        $url     the stylesheet's URL. Null -- the default -- resolves
      *                                from the package's own path under wp-content at the
      *                                enqueue site and refuses loudly when the package lives
@@ -47,23 +54,33 @@ final readonly class FieldStyles
     ) {
     }
 
-    /** The package's own resolution, refusing loudly when it cannot hold. */
+    /**
+     * The package's own resolution, refusing loudly when it cannot hold.
+     *
+     * A Composer path repository installs the package as a symlink inside the
+     * host's vendor directory while the real checkout lives elsewhere, and
+     * PHP's __DIR__ resolves the link — so the logical path is recovered
+     * through core's own theme API, which names the file as the web server
+     * serves it. A package installed directly under wp-content resolves from
+     * its own path; a package that lives nowhere core can name refuses.
+     */
     private static function packageUrl(): string
     {
-        $file = \realpath(__DIR__.'/../../resources/fields.css');
+        $content = \wp_normalize_path(WP_CONTENT_DIR.'/');
 
-        if (false === $file) {
-            throw UnresolvableFieldStyles::outsideContent('resources/fields.css is missing from the package');
+        $throughTheme = \wp_normalize_path((string) \get_theme_file_path(self::VENDOR_PATH));
+
+        if (\is_file($throughTheme) && \str_starts_with($throughTheme, $content)) {
+            return \content_url(\substr($throughTheme, strlen($content)));
         }
 
-        $content = \wp_normalize_path((string) \realpath(WP_CONTENT_DIR).'/');
-        $file = \wp_normalize_path($file);
+        $file = \wp_normalize_path((string) \realpath(__DIR__.'/../../resources/fields.css'));
 
-        if (!\str_starts_with($file, $content)) {
-            throw UnresolvableFieldStyles::outsideContent($file);
+        if (\is_file($file) && \str_starts_with($file, $content)) {
+            return \content_url(\substr($file, strlen($content)));
         }
 
-        return \content_url(\substr($file, strlen($content)));
+        throw UnresolvableFieldStyles::outsideContent($file);
     }
 
     /**
