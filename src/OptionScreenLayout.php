@@ -12,9 +12,9 @@ namespace Iniznet\Mahout\Fields;
  */
 enum OptionScreenLayout: string
 {
-    /** Core's nav-tab bar across the top -- the default, and the shape the page took first. */
+    /** Core's nav-tab bar across the top -- the shape the page took first. */
     case Tabs = 'tabs';
 
-    /** A navigation column beside the content, for pages that read as a document. */
+    /** A navigation column beside the content -- the default, for pages that read as a document. */
     case Sidebar = 'sidebar';
 }

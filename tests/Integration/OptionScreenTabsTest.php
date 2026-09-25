@@ -376,6 +376,7 @@ final class OptionScreenTabsTest extends TestCase
                     OptionSection::content('Guide', __DIR__.'/../Fixtures/markup/display-guide.php'),
                 ]),
             ],
+            layout: OptionScreenLayout::Tabs,
         );
     }
 

@@ -219,13 +219,14 @@ new OptionScreen(
     menuParent: '',          // a top-level screen declares no parent
     topLevel: true,
     menuIcon: 'dashicons-layout',
-    layout: OptionScreenLayout::Sidebar, // a nav column; Tabs is the default bar
+    layout: OptionScreenLayout::Tabs,     // a nav-tab bar; Sidebar is the default
 );
 ```
 
-The layout is structural: core's nav-tab bar across the top, or a navigation
-column beside the content. The shipped stylesheet styles the page shell and
-both layouts; a host that took styling over owns the look instead.
+The layout is structural: a navigation column beside the content -- the
+default, for pages that read as a document -- or core's nav-tab bar across
+the top. The shipped stylesheet styles the page shell and both layouts; a
+host that took styling over owns the look instead.
 
 A screen whose tabs carry no field group at all renders no form -- no nonce,
 no save button, no save entry: a documentation or guide page is a screen like

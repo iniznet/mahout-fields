@@ -35,7 +35,7 @@
 <?php if ('' !== $section['title']) { ?>
 				<h2><?php echo esc_html($section['title']); ?></h2>
 <?php } ?>
-<?php echo $section['markup']; // each part's own markup, escaped at its own outputs ?>
+<?php echo $section['markup']; // each part's own markup, escaped at its own outputs?>
 			</div>
 <?php } ?>
 <?php if ($view['hasFields']) { ?>

@@ -64,7 +64,7 @@ final readonly class OptionScreen
         public string $menuParent = 'options-general.php',
         public string $description = '',
         array $tabs = [],
-        public OptionScreenLayout $layout = OptionScreenLayout::Tabs,
+        public OptionScreenLayout $layout = OptionScreenLayout::Sidebar,
         public bool $topLevel = false,
         public string $menuIcon = '',
     ) {
