@@ -219,7 +219,9 @@ final class Hooks
      * save_post; Admin\FieldsUiProvider attaches Admin\OptionScreenManager
      * through it, and the manager registers a page only for a screen the
      * current user's capability reaches -- a screen the user cannot reach is
-     * not registered at all, never rendered without values.
+     * not registered at all, never rendered without values. A screen whose
+     * tabs carry no field group registers no save entry with it: nothing can
+     * be submitted to a documentation page.
      *
      * @since 1.0
      *
