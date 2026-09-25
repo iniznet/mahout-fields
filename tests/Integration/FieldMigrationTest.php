@@ -187,14 +187,14 @@ final class FieldMigrationTest extends TestCase
     private function metaRepeaterGroup(): FieldGroup
     {
         return new FieldGroup('fixture_group', ObjectContext::Post, [
-            new RepeaterField('fixture_items', StorageTarget::Meta, new TextField('fixture_item', StorageTarget::Meta), 5),
+            new RepeaterField('fixture_items', StorageTarget::Meta, new TextField('fixture_item', StorageTarget::Carried), 5),
         ]);
     }
 
     private function tableRepeaterGroup(): FieldGroup
     {
         return new FieldGroup('fixture_group', ObjectContext::Post, [
-            new RepeaterField('fixture_items', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Table), 5),
+            new RepeaterField('fixture_items', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Carried), 5),
         ]);
     }
 

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Exception;
 
+use Iniznet\Mahout\Fields\RepeaterField;
+
 /**
  * A field declaration breaks its own type's rules: a choice field with no
- * options, a repeater whose item is itself a repeater, a negative item
- * expectation. The declaration is refused where it is written.
+ * options, a repeater member with storage of its own, nesting past the cap.
+ * The declaration is refused where it is written.
  */
 final class InvalidFieldDefinition extends \LogicException implements MahoutException
 {
@@ -24,9 +26,24 @@ final class InvalidFieldDefinition extends \LogicException implements MahoutExce
         return new self(sprintf('Choice field "%s" declares no options.', $fieldId), $fieldId, 'choices');
     }
 
-    public static function repeaterOfRepeater(string $fieldId): self
+    public static function emptyRepeaterItem(string $fieldId): self
     {
-        return new self(sprintf('Repeater "%s" declares a repeater as its item; declare a dedicated table instead.', $fieldId), $fieldId, 'item');
+        return new self(sprintf('Repeater "%s" declares a composite item with no members.', $fieldId), $fieldId, 'item');
+    }
+
+    public static function memberNotCarried(string $fieldId, string $memberId): self
+    {
+        return new self(sprintf('Repeater "%s" member "%s" declares storage of its own; a member is Carried, and the root repeater stores every leaf.', $fieldId, $memberId), $fieldId, 'member');
+    }
+
+    public static function duplicateMemberId(string $fieldId, string $memberId): self
+    {
+        return new self(sprintf('Repeater "%s" declares member "%s" twice; member ids are unique across the whole nesting.', $fieldId, $memberId), $fieldId, 'member');
+    }
+
+    public static function nestingTooDeep(string $fieldId, string $memberId): self
+    {
+        return new self(sprintf('Repeater "%s" nests "%s" past the depth cap of %d levels.', $fieldId, $memberId, RepeaterField::MAX_DEPTH), $fieldId, 'depth');
     }
 
     public static function itemExpectation(string $fieldId, int $declared): self

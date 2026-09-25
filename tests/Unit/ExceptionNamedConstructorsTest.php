@@ -121,7 +121,10 @@ final class ExceptionNamedConstructorsTest extends TestCase
     public function testInvalidFieldDefinitionCarriesFieldAndReason(): void
     {
         self::assertSame('choices', InvalidFieldDefinition::emptyChoiceSet('c')->reason());
-        self::assertSame('item', InvalidFieldDefinition::repeaterOfRepeater('r')->reason());
+        self::assertSame('item', InvalidFieldDefinition::emptyRepeaterItem('r')->reason());
+        self::assertSame('member', InvalidFieldDefinition::memberNotCarried('r', 'm')->reason());
+        self::assertSame('member', InvalidFieldDefinition::duplicateMemberId('r', 'm')->reason());
+        self::assertSame('depth', InvalidFieldDefinition::nestingTooDeep('r', 'm')->reason());
         self::assertSame('items', InvalidFieldDefinition::itemExpectation('e', 0)->reason());
     }
 
@@ -138,7 +141,8 @@ final class ExceptionNamedConstructorsTest extends TestCase
     {
         self::assertSame('shape', InvalidFieldWrite::scalarIntoRepeater('r')->reason());
         self::assertSame('shape', InvalidFieldWrite::itemsIntoScalar('i')->reason());
-        self::assertSame('target', InvalidFieldWrite::jsonIntoItemsTable('j')->reason());
+        self::assertSame('shape', InvalidFieldWrite::badRepeaterAddress('r')->reason());
+        self::assertSame('shape', InvalidFieldWrite::addressTooLong('r')->reason());
         self::assertSame('context', InvalidFieldWrite::optionRow('o')->reason());
         self::assertSame('shape', InvalidFieldWrite::unreadableMeta('m')->reason());
         self::assertSame('backend', InvalidFieldWrite::metaRefused('m')->reason());
@@ -150,7 +154,8 @@ final class ExceptionNamedConstructorsTest extends TestCase
 
         self::assertSame('option', $optionTable->context());
         self::assertSame('table', $optionTable->storage());
-        self::assertStringContainsString('decimal', InvalidStorageCombination::repeaterItemWithoutColumn('i', 'decimal')->getMessage());
+        self::assertStringContainsString('repeater', InvalidStorageCombination::carriedOutsideRepeater('i')->getMessage());
+        self::assertSame('carried', InvalidStorageCombination::queriedCarriedRepeater('i')->storage());
     }
 
     public function testRepeaterTooLargeCarriesSizeAndCap(): void

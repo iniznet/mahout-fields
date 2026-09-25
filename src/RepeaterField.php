@@ -6,37 +6,117 @@ namespace Iniznet\Mahout\Fields;
 
 use Iniznet\Mahout\Fields\Exception\InvalidFieldDefinition;
 use Iniznet\Mahout\Fields\Exception\InvalidFieldWrite;
+use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
 
 /**
- * A repeater: one declared scalar field, repeated.
+ * A repeater: repeated items at explicit positions, the one hierarchical
+ * field type.
  *
- * The Meta target stores the versioned JSON payload a codec encodes; the
- * Table target binds the items table, one row per item at an explicit
- * position. The two shapes are the two strategies the storage contract names,
- * and a repeater that is queried may only take the second.
+ * The item is either one scalar field (the scalar convenience, unchanged call
+ * shape) or a RepeaterItem carrying several. A member may itself be a
+ * RepeaterField — nesting is legal, capped at {@see MAX_DEPTH} levels, and
+ * every member declares StorageTarget::Carried because no member has storage
+ * of its own: the root repeater's target stores every leaf in the tree, at
+ * the leaf's address.
  *
- * The item must be a scalar field — a repeater of repeaters has no generic
- * row shape, and is the documented trigger for a dedicated typed table.
+ * The two targets are the two strategies the storage contract names: Meta
+ * keeps one row per leaf, keyed by address; Table keeps one items-table row
+ * per leaf, indexed for the member-qualified query. A repeater that is
+ * queried may only take the second.
  */
 final readonly class RepeaterField extends Field
 {
+    /** The deepest legal nesting: the root plus two nested levels. */
+    public const int MAX_DEPTH = 3;
+
     public function __construct(
         string $id,
         StorageTarget $storage,
-        public Field $item,
+        public Field|RepeaterItem $item,
         public ?int $expectedMaxItems = null,
         public bool $queried = false,
+        public RepeaterLayout $layout = RepeaterLayout::Stacked,
         ?PersonalData $personalData = null,
         ?string $label = null,
     ) {
         parent::__construct($id, $storage, $personalData, $label);
 
-        if ($item instanceof RepeaterField) {
-            throw InvalidFieldDefinition::repeaterOfRepeater($id);
-        }
-
         if (null !== $expectedMaxItems && $expectedMaxItems < 1) {
             throw InvalidFieldDefinition::itemExpectation($id, $expectedMaxItems);
+        }
+
+        if (StorageTarget::Carried === $storage && $queried) {
+            throw InvalidStorageCombination::queriedCarriedRepeater($id);
+        }
+
+        $this->assertTree($id, $this->members(), 1);
+    }
+
+    /**
+     * The item's fields: the one field of a scalar item, or the declared
+     * list of a composite item.
+     *
+     * @return list<Field>
+     */
+    public function members(): array
+    {
+        return $this->item instanceof Field ? [$this->item] : $this->item->fields;
+    }
+
+    /**
+     * A repeater's stored value has no scalar form: items travel as arrays
+     * through setItems(), and a scalar into a repeater is a loud refusal.
+     */
+    #[\Override]
+    public function sanitise(string|int|float|bool|null $value): string|int|float|bool|null
+    {
+        if (null === $value) {
+            return null;
+        }
+
+        throw InvalidFieldWrite::scalarIntoRepeater($this->id);
+    }
+
+    #[\Override]
+    public function cast(string|int|float|bool|null $raw): ?string
+    {
+        return null === $raw ? null : (string) $raw;
+    }
+
+    /**
+     * The subtree rules, enforced here because the root's id names every
+     * refusal: every member is Carried, member ids are unique across the
+     * whole nesting (so a leaf is addressable unambiguously), and the depth
+     * cap holds.
+     *
+     * @param list<Field> $members
+     */
+    private function assertTree(string $rootId, array $members, int $depth): void
+    {
+        if ($this->item instanceof RepeaterItem && [] === $this->item->fields) {
+            throw InvalidFieldDefinition::emptyRepeaterItem($rootId);
+        }
+
+        $seen = [];
+
+        foreach ($members as $member) {
+            if (StorageTarget::Carried !== $member->storage) {
+                throw InvalidFieldDefinition::memberNotCarried($rootId, $member->id);
+            }
+
+            if (isset($seen[$member->id])) {
+                throw InvalidFieldDefinition::duplicateMemberId($rootId, $member->id);
+            }
+
+            $seen[$member->id] = true;
+
+            if ($member instanceof RepeaterField) {
+                if ($depth + 1 > self::MAX_DEPTH) {
+                    throw InvalidFieldDefinition::nestingTooDeep($rootId, $member->id);
+                }
+
+                $this->assertTree($rootId, $member->members(), $depth + 1);
+            }
         }
     }
 
@@ -44,31 +124,5 @@ final readonly class RepeaterField extends Field
     public function type(): FieldType
     {
         return FieldType::Repeater;
-    }
-
-    /**
-     * A repeater's stored value is the versioned payload, validated but never
-     * re-encoded: the payload bytes are the codec's, not the field layer's.
-     */
-    #[\Override]
-    public function sanitise(string|int|float|bool|null $value): ?string
-    {
-        if (null === $value) {
-            return null;
-        }
-
-        if (!\is_string($value)) {
-            throw InvalidFieldWrite::scalarIntoRepeater($this->id);
-        }
-
-        RepeaterCodec::assertPayload($value);
-
-        return $value;
-    }
-
-    #[\Override]
-    public function cast(string|int|float|bool|null $raw): ?string
-    {
-        return null === $raw ? null : (string) $raw;
     }
 }

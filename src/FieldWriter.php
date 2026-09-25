@@ -385,9 +385,15 @@ final readonly class FieldWriter implements FieldWriterContract
      */
     private function sanitisedItems(RepeaterField $field, array $items): array
     {
+        $scalar = $field->item instanceof Field ? $field->item : null;
+
+        if (null === $scalar) {
+            throw InvalidFieldWrite::badRepeaterAddress($field->id);
+        }
+
         $sanitised = [];
         foreach ($items as $index => $item) {
-            $value = $field->item->sanitise(\is_scalar($item) ? $item : '');
+            $value = $scalar->sanitise(\is_scalar($item) ? $item : '');
 
             if (null === $value) {
                 throw InvalidFieldValue::refused($field->id, 'repeater item', (string) $index, 'the item sanitised to nothing');

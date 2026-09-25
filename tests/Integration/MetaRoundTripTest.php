@@ -185,7 +185,7 @@ final class MetaRoundTripTest extends TestCase
             new DecimalField('fixture_decimal', StorageTarget::Meta),
             new BooleanField('fixture_boolean', StorageTarget::Meta),
             new DateField('fixture_date', StorageTarget::Meta),
-            new RepeaterField('fixture_repeater', StorageTarget::Meta, new TextField('fixture_item', StorageTarget::Meta)),
+            new RepeaterField('fixture_repeater', StorageTarget::Meta, new TextField('fixture_item', StorageTarget::Carried)),
         ]);
     }
 }

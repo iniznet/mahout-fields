@@ -160,7 +160,7 @@ final class RevisionRestoreTest extends TestCase
     private function repeaterGroup(): FieldGroup
     {
         return new FieldGroup('fixture_group', ObjectContext::Post, [
-            new RepeaterField('fixture_items', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Table), 5),
+            new RepeaterField('fixture_items', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Carried), 5),
         ]);
     }
 }

@@ -180,7 +180,7 @@ final class TableRoundTripTest extends TestCase
             new DecimalField('fixture_decimal', StorageTarget::Table),
             new BooleanField('fixture_boolean', StorageTarget::Table),
             new DateField('fixture_date', StorageTarget::Table),
-            new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Table)),
+            new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Carried)),
         ]);
     }
 }

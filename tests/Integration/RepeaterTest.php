@@ -29,7 +29,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_credits', ObjectContext::Post, [
-            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Meta)),
+            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Carried)),
         ]));
 
         $this->writer->setItems('fixture_credits_list', ObjectRef::post($postId), ['Ursula K. Le Guin', 'Isaac Asimov', 'Octavia Butler']);
@@ -43,7 +43,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_credits', ObjectContext::Post, [
-            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Meta)),
+            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Carried)),
         ]));
 
         $this->writer->setItems('fixture_credits_list', ObjectRef::post($postId), ['first', 'second']);
@@ -57,7 +57,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_chapters', ObjectContext::Post, [
-            new RepeaterField('fixture_chapter_list', StorageTarget::Table, new TextField('fixture_chapter_item', StorageTarget::Table)),
+            new RepeaterField('fixture_chapter_list', StorageTarget::Table, new TextField('fixture_chapter_item', StorageTarget::Carried)),
         ]));
 
         $this->writer->setItems('fixture_chapter_list', ObjectRef::post($postId), ['The Necklace', 'The Storm', 'The Gift']);
@@ -79,7 +79,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_chapters', ObjectContext::Post, [
-            new RepeaterField('fixture_chapter_list', StorageTarget::Table, new TextField('fixture_chapter_item', StorageTarget::Table)),
+            new RepeaterField('fixture_chapter_list', StorageTarget::Table, new TextField('fixture_chapter_item', StorageTarget::Carried)),
         ]));
 
         $this->writer->setItems('fixture_chapter_list', ObjectRef::post($postId), ['a', 'b', 'c']);
@@ -96,7 +96,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_ranks', ObjectContext::Post, [
-            new RepeaterField('fixture_rank_list', StorageTarget::Table, new IntegerField('fixture_rank_item', StorageTarget::Table)),
+            new RepeaterField('fixture_rank_list', StorageTarget::Table, new IntegerField('fixture_rank_item', StorageTarget::Carried)),
         ]));
 
         $this->writer->setItems('fixture_rank_list', ObjectRef::post($postId), [10, 20, 30]);
@@ -113,7 +113,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_credits', ObjectContext::Post, [
-            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Meta)),
+            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Carried)),
         ]));
 
         $oversized = str_repeat('a', RepeaterCodec::MAX_BYTES);
@@ -126,7 +126,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_credits', ObjectContext::Post, [
-            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Meta), expectedMaxItems: 2),
+            new RepeaterField('fixture_credits_list', StorageTarget::Meta, new TextField('fixture_credit_item', StorageTarget::Carried), expectedMaxItems: 2),
         ]));
 
         $this->expectException(RepeaterTooLarge::class);
@@ -137,7 +137,7 @@ final class RepeaterTest extends TestCase
     {
         $this->expectException(InvalidStorageCombination::class);
         $this->registry->register(new FieldGroup('fixture_queried', ObjectContext::Post, [
-            new RepeaterField('fixture_queried_list', StorageTarget::Meta, new TextField('fixture_queried_item', StorageTarget::Meta), queried: true),
+            new RepeaterField('fixture_queried_list', StorageTarget::Meta, new TextField('fixture_queried_item', StorageTarget::Carried), queried: true),
         ]));
     }
 
@@ -145,7 +145,7 @@ final class RepeaterTest extends TestCase
     {
         $postId = $this->postId();
         $this->registry->register(new FieldGroup('fixture_queried', ObjectContext::Post, [
-            new RepeaterField('fixture_queried_list', StorageTarget::Table, new TextField('fixture_queried_item', StorageTarget::Table), queried: true),
+            new RepeaterField('fixture_queried_list', StorageTarget::Table, new TextField('fixture_queried_item', StorageTarget::Carried), queried: true),
         ]));
 
         $this->writer->setItems('fixture_queried_list', ObjectRef::post($postId), ['one', 'two']);

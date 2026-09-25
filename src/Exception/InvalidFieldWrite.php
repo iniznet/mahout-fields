@@ -24,6 +24,16 @@ final class InvalidFieldWrite extends \LogicException implements MahoutException
         return new self(sprintf('Field "%s" is a repeater; write its items through setItems(), never a scalar.', $fieldId), $fieldId, 'shape');
     }
 
+    public static function badRepeaterAddress(string $fieldId): self
+    {
+        return new self(sprintf('Field "%s" received an item shape that breaks the address grammar; declare the members the form submits.', $fieldId), $fieldId, 'shape');
+    }
+
+    public static function addressTooLong(string $fieldId): self
+    {
+        return new self(sprintf('Field "%s" produced a leaf address past the 191-byte cap; shorten a member id or reduce the nesting.', $fieldId), $fieldId, 'shape');
+    }
+
     public static function itemsIntoScalar(string $fieldId): self
     {
         return new self(sprintf('Field "%s" is scalar; write it through set(), never as an item list.', $fieldId), $fieldId, 'shape');

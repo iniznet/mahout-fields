@@ -137,16 +137,22 @@ final readonly class TableStorage
             FieldItemsTable::fieldIdColumn() => $field->id,
         ])));
 
+        $scalar = $field->item instanceof Field ? $field->item : null;
+
+        if (null === $scalar) {
+            throw InvalidFieldWrite::badRepeaterAddress($field->id);
+        }
+
         $items = [];
         foreach ($rows as $row) {
             $position = (int) $row->value(FieldItemsTable::positionColumn());
             /** @var string $column the item field's column is always text or int on this table */
-            $column = FieldValuesTable::itemColumnFor($field->item->type());
+            $column = FieldValuesTable::itemColumnFor($scalar->type());
             $raw = $row->has($column) ? $row->value($column) : null;
 
             $items[] = [
                 'position' => $position,
-                'value' => $field->item->cast($raw),
+                'value' => $scalar->cast($raw),
             ];
         }
 
@@ -185,7 +191,13 @@ final readonly class TableStorage
      */
     private function itemColumns(RepeaterField $field, string|int|float|bool $item): array
     {
-        $column = FieldValuesTable::itemColumnFor($field->item->type());
+        $scalar = $field->item instanceof Field ? $field->item : null;
+
+        if (null === $scalar) {
+            throw InvalidFieldWrite::badRepeaterAddress($field->id);
+        }
+
+        $column = FieldValuesTable::itemColumnFor($scalar->type());
 
         $row = [
             FieldItemsTable::textColumn() => null,

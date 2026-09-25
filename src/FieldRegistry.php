@@ -131,10 +131,8 @@ final class FieldRegistry implements FieldRegistryContract
             throw InvalidStorageCombination::queriedRepeaterInMeta($field->id);
         }
 
-        if (StorageTarget::Table === $resolved) {
-            if (!FieldItemsTable::holdsItem($field->item->type())) {
-                throw InvalidStorageCombination::repeaterItemWithoutColumn($field->id, $field->item->type()->value);
-            }
+        if (StorageTarget::Carried === $resolved) {
+            throw InvalidStorageCombination::carriedOutsideRepeater($field->id);
         }
     }
 }

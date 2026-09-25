@@ -176,7 +176,7 @@ final class FieldEditorTest extends TestCase
     {
         return new FieldGroup(self::GROUP, ObjectContext::Post, [
             new TextField('fixture_text', StorageTarget::Table),
-            new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Table)),
+            new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Carried)),
         ]);
     }
 

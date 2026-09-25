@@ -134,7 +134,7 @@ final class FieldQueryTest extends TestCase
     public function testARepeaterHasNoValueColumnToCompare(): void
     {
         $this->registry->register(new FieldGroup('fixture_repeater_group', ObjectContext::Post, [
-            new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Table)),
+            new RepeaterField('fixture_repeater', StorageTarget::Table, new TextField('fixture_item', StorageTarget::Carried)),
         ]));
 
         try {

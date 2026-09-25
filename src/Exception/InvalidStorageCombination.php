@@ -8,10 +8,11 @@ namespace Iniznet\Mahout\Fields\Exception;
  * A field's declaration pairs an object context with a storage target that
  * cannot serve it.
  *
- * Two combinations are unrepresentable by design: an option-context field on
- * the generic value table (options are singletons read by key; a table buys
- * nothing), and a repeater declared queried on the Meta target (a queried
- * repeater must bind the items table, not JSON).
+ * Three combinations are unrepresentable by design: an option-context field
+ * on the generic value table (options are singletons read by key; a table
+ * buys nothing), a repeater declared queried on the Meta target (a queried
+ * repeater must bind the items table), and a Carried field outside a
+ * repeater item (a carried leaf has no enclosing repeater to store it).
  */
 final class InvalidStorageCombination extends \InvalidArgumentException implements MahoutException
 {
@@ -44,13 +45,23 @@ final class InvalidStorageCombination extends \InvalidArgumentException implemen
         );
     }
 
-    public static function repeaterItemWithoutColumn(string $fieldId, string $itemType): self
+    public static function carriedOutsideRepeater(string $fieldId): self
     {
         return new self(
-            sprintf('Repeater "%s" declares %s items on Table storage; the generic items table holds text and integer items only, so bind a dedicated table or store this repeater as JSON.', $fieldId, $itemType),
+            sprintf('Field "%s" declares Carried storage outside a repeater item; a carried leaf has no enclosing repeater to store it.', $fieldId),
             $fieldId,
             'any',
-            'table',
+            'carried',
+        );
+    }
+
+    public static function queriedCarriedRepeater(string $fieldId): self
+    {
+        return new self(
+            sprintf('Repeater "%s" is declared queried and Carried; only the root repeater is queried, and it declares a real target.', $fieldId),
+            $fieldId,
+            'any',
+            'carried',
         );
     }
 
