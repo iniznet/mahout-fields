@@ -362,7 +362,6 @@ only the following, deviations. Each is an ADR, not an edit to the contract.
 | Deviation | Why | ADR |
 |---|---|---|
 | `composer stan` and `composer arch` run the same shared PHPStan config | A consumer's root config must include the shared one, which already carries the rules | 0005 |
-| The committed `composer.lock` is resolved through the uncommitted path repository | `mahout-devtools` is not published yet, and a committed `path` repository would make a fresh clone unresolvable | 0005 |
 | Exception messages are not translated | They are developer-facing diagnostics; the generated POT is header-only | 0005 |
 
 No other rule in this document is relaxed. In particular: no reflection, no
