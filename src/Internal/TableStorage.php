@@ -39,7 +39,46 @@ final readonly class TableStorage
         private TableGateway $gateway,
         private Table $values,
         private Table $leaves,
+        private ValueRowStore $rows = new ValueRowStore(),
     ) {
+    }
+
+    /**
+     * One statement for a whole page of objects: every scalar row the given
+     * objects own, filed into the store so the per-field reads that follow are
+     * memory lookups. The ceiling is the caller's proven maximum rows per object
+     * times the object count, so the statement is bounded by the page rather than
+     * by how many rows the page turns out to own.
+     *
+     * @param list<int> $objectIds
+     */
+    public function prime(ObjectKind $kind, array $objectIds, int $ceiling): void
+    {
+        if ([] === $objectIds) {
+            return;
+        }
+
+        $rows = $this->gateway->select(GatewayQuery::among(
+            Row::of($this->values, [FieldValuesTable::objectKindColumn() => $kind->value]),
+            $this->values->column(FieldValuesTable::objectIdColumn()),
+            $objectIds,
+            $ceiling,
+        ));
+
+        $byObject = [];
+
+        foreach ($rows as $row) {
+            $byObject[(int) $row->value(FieldValuesTable::objectIdColumn())][] = $row;
+        }
+
+        foreach ($objectIds as $id) {
+            $this->rows->file(ValueRowStore::key($kind, $id), $byObject[$id] ?? []);
+        }
+    }
+
+    public function primed(ObjectKind $kind, int $objectId): bool
+    {
+        return $this->rows->primed(ValueRowStore::key($kind, $objectId));
     }
 
     /**
@@ -48,6 +87,22 @@ final readonly class TableStorage
     public function read(Field $field, ObjectRef $object): string|int|null
     {
         $kind = $this->kind($object, $field);
+
+        // A primed object answers from the page read; an unprimed one still costs a
+        // single primary-key equality, which is the shape it has always had.
+        if ($this->rows->primed(ValueRowStore::key($kind, $object->id))) {
+            $row = $this->rows->row(ValueRowStore::key($kind, $object->id), $field->id);
+
+            if (null === $row) {
+                return null;
+            }
+
+            /** @var string $column FieldValuesTable::columnFor() is non-null for every scalar type */
+            $column = FieldValuesTable::columnFor($field->type()) ?? '';
+
+            return $row->has($column) ? $row->value($column) : null;
+        }
+
         $rows = $this->gateway->select(GatewayQuery::keyed(Row::of($this->values, [
             FieldValuesTable::objectKindColumn() => $kind->value,
             FieldValuesTable::objectIdColumn() => $object->id,

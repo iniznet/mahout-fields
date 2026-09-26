@@ -82,15 +82,29 @@ final class FieldQueryTest extends TestCase
         self::assertStringNotContainsString('DROP', $statement);
     }
 
-    public function testCountAggregatesOverTheIndexedColumn(): void
+    public function testCountAggregatesOverTheIndexedColumnWithinItsCeiling(): void
     {
         $this->registry->register($this->group());
         $this->writer->set('fixture_integer', ObjectRef::post($this->postId()), 5);
         $this->writer->set('fixture_integer', ObjectRef::post($this->postId()), 5);
         $this->writer->set('fixture_integer', ObjectRef::post($this->postId()), 6);
 
-        self::assertSame(2, $this->query()->count('fixture_integer', Operator::Equals, 5));
-        self::assertSame(3, $this->query()->count('fixture_integer', Operator::GreaterThanOrEqual, 0));
+        self::assertSame(2, $this->query()->countUpTo('fixture_integer', Operator::Equals, 5, 10));
+        self::assertSame(3, $this->query()->countUpTo('fixture_integer', Operator::GreaterThanOrEqual, 0, 10));
+
+        // The saturation is the bound: past the ceiling the answer stops growing and
+        // so does the scan, which is the whole point of counting over a capped read.
+        self::assertSame(2, $this->query()->countUpTo('fixture_integer', Operator::GreaterThanOrEqual, 0, 2), 'a ceiling below the range saturates at the ceiling.');
+
+        $statements = 0;
+
+        foreach ((array) ($GLOBALS['wpdb']->queries ?? []) as $record) {
+            if (1 === preg_match('/FROM \(SELECT 1 FROM/', (string) ($record[0] ?? ''))) {
+                ++$statements;
+            }
+        }
+
+        self::assertGreaterThan(0, $statements, 'the aggregate is taken over a capped inner read.');
     }
 
     public function testOrderedIdsReturnsIndexOrderWithNoSecondSort(): void
@@ -147,7 +161,7 @@ final class FieldQueryTest extends TestCase
         $ids = $this->query()->postIds('fixture_credits.fixture_role', Operator::Equals, 'author', 10);
 
         self::assertSame([$alpha], $ids, 'the query_path index answers the member-qualified scan.');
-        self::assertSame(1, $this->query()->count('fixture_credits.fixture_role', Operator::Equals, 'author'));
+        self::assertSame(1, $this->query()->countUpTo('fixture_credits.fixture_role', Operator::Equals, 'author', 10));
     }
 
     public function testAQueriedDateMemberComparesThroughTheColumnItsWriteUsed(): void

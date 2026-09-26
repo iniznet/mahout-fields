@@ -18,9 +18,10 @@ use Iniznet\Mahout\Fields\Exception\InvalidStorageCombination;
  * Every identifier in every statement -- the table name, the value column,
  * the kind and field columns -- is read back from a declared schema object or
  * a closed enum; every value is bound through a placeholder; every statement
- * carries an explicit LIMIT except the aggregate, whose bound is the
- * field_id index's own range scan. There is no other statement shape in this
- * class and no string argument reaches one (ADR-0011).
+ * carries an explicit LIMIT, the aggregate included: the aggregate counts over a
+ * capped inner read, so no shape in this class has a cost that grows with the size
+ * of the range it answers. There is no other statement shape in this class and no
+ * string argument reaches one (ADR-0011).
  */
 final readonly class FieldQuery implements FieldQueryContract
 {
@@ -68,13 +69,20 @@ final readonly class FieldQuery implements FieldQueryContract
     }
 
     #[\Override]
-    public function count(string $fieldId, Operator $operator, string|int|float|bool|null $value): int
+    public function countUpTo(string $fieldId, Operator $operator, string|int|float|bool|null $value, int $ceiling): int
     {
+        if ($ceiling < 1) {
+            throw UnboundedStatement::forLimit($this->values->name->value, $ceiling);
+        }
+
+        // The bound cannot sit on an aggregate, so it goes one level down. The scan
+        // then costs at most $ceiling rows whatever the range holds, and the answer
+        // saturates at $ceiling instead of the statement becoming unbounded.
         if ($this->isMemberQualified($fieldId)) {
             [$root, $member, $column, $placeholder, $comparand] = $this->leafBinding($fieldId, $value);
 
             $statement = \sprintf(
-                'SELECT COUNT(*) AS aggregate FROM %s WHERE %s = %%d AND %s = %%s AND %s = %%s AND %s %s %s',
+                'SELECT COUNT(*) AS aggregate FROM (SELECT 1 FROM %s WHERE %s = %%d AND %s = %%s AND %s = %%s AND %s %s %s LIMIT %%d) AS capped',
                 $this->leaves->name->value,
                 FieldLeavesTable::objectKindColumn(),
                 FieldLeavesTable::groupIdColumn(),
@@ -84,7 +92,7 @@ final readonly class FieldQuery implements FieldQueryContract
                 $placeholder,
             );
 
-            $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $root, $member, $comparand);
+            $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $root, $member, $comparand, $ceiling);
 
             return (int) ($rows[0][self::AGGREGATE] ?? 0);
         }
@@ -92,7 +100,7 @@ final readonly class FieldQuery implements FieldQueryContract
         [$column, $placeholder, $comparand] = $this->binding($fieldId, $value);
 
         $statement = \sprintf(
-            'SELECT COUNT(*) AS aggregate FROM %s WHERE %s = %%d AND %s = %%s AND %s %s %s',
+            'SELECT COUNT(*) AS aggregate FROM (SELECT 1 FROM %s WHERE %s = %%d AND %s = %%s AND %s %s %s LIMIT %%d) AS capped',
             $this->values->name->value,
             FieldValuesTable::objectKindColumn(),
             FieldValuesTable::fieldIdColumn(),
@@ -101,7 +109,7 @@ final readonly class FieldQuery implements FieldQueryContract
             $placeholder,
         );
 
-        $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $fieldId, $comparand);
+        $rows = $this->connection->rowsPrepared($statement, ObjectKind::Post->value, $fieldId, $comparand, $ceiling);
 
         return (int) ($rows[0][self::AGGREGATE] ?? 0);
     }

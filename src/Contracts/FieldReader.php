@@ -18,6 +18,21 @@ use Iniznet\Mahout\Fields\ObjectRef;
 interface FieldReader
 {
     /**
+     * File every Table-stored row the given objects own in one statement per kind,
+     * so the reads that follow cost nothing. Call it once per result set, before
+     * mapping — the same duty `update_meta_cache()` discharges for the Meta target,
+     * and for the same reason: without it, N objects times M fields is N×M
+     * statements, and the storage target would be a performance decision at the call
+     * site rather than a storage one.
+     *
+     * Meta-anchored and option-anchored fields need nothing here, and a set with no
+     * Table-stored field registered issues no statement at all.
+     *
+     * @param list<ObjectRef> $objects
+     */
+    public function prime(array $objects): void;
+
+    /**
      * One scalar field's value in its declared PHP shape, or null when absent.
      *
      * @throws FieldNotFound

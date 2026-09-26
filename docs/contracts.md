@@ -43,9 +43,20 @@ The read path. A registered field is read through this contract and never
 through a raw `get_post_meta()`, which is the rule that makes the storage
 target invisible at every call site.
 
+`prime()` discharges the other half of that invisibility. A `Meta` field is read
+from the cache core's priming already fills; a `Table` field would otherwise cost
+one primary-key read per field per row, so a page of twenty rows and six fields
+would cost a hundred and twenty statements. The prime files every row the page will
+read in one statement per kind, which is what lets the target stay a storage
+decision instead of a performance one. A set with no `Table` field in it issues
+nothing, and an object with no rows is filed as absent so its reads cost nothing
+either.
+
 ```php
 interface FieldReader
 {
+    /** @param list<ObjectRef> $objects */
+    public function prime(array $objects): void;
     public function value(string $fieldId, ObjectRef $object): string|int|float|bool|null;
     /** @return list<string|int|float|bool|null>|list<array<string, string|int|float|bool>> */
     public function items(string $fieldId, ObjectRef $object): array;

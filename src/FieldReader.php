@@ -31,6 +31,72 @@ final readonly class FieldReader implements FieldReaderContract
     ) {
     }
 
+    /**
+     * One statement per kind for the whole set of objects, so a page of Table-stored
+     * fields costs a read per page rather than a read per field per row — the same
+     * contract core's `update_meta_cache()` gives the meta target. The ceiling is
+     * derived, not guessed: no object can own more scalar rows than there are
+     * Table-targeted scalar fields registered.
+     *
+     * A set with no Table-stored field in it issues nothing at all, so a theme that
+     * anchors everything to Meta pays no statement here.
+     *
+     * @param list<ObjectRef> $objects
+     */
+    #[\Override]
+    public function prime(array $objects): void
+    {
+        $perObject = $this->countTableScalarFields();
+
+        if (0 === $perObject) {
+            return;
+        }
+
+        /** @var array<int, list<int>> $byKind */
+        $byKind = [];
+
+        foreach ($objects as $object) {
+            $kind = ObjectKind::fromContext($object->context);
+
+            // The option context owns no rows, and an object already filed needs no
+            // second read: prime again with an empty remainder and it costs nothing.
+            if (null === $kind || $this->table->primed($kind, $object->id)) {
+                continue;
+            }
+
+            $byKind[$kind->value][] = $object->id;
+        }
+
+        foreach ($byKind as $value => $ids) {
+            $ids = \array_values(\array_unique($ids));
+            $this->table->prime(ObjectKind::from($value), $ids, \count($ids) * $perObject);
+        }
+    }
+
+    /**
+     * How many scalar fields are anchored to the value table. An overcount is safe —
+     * it only widens the LIMIT — so an option-context group is counted alongside the
+     * rest rather than being sorted by kind here.
+     */
+    private function countTableScalarFields(): int
+    {
+        $count = 0;
+
+        foreach ($this->registry->groups() as $group) {
+            foreach ($group->fields as $field) {
+                if ($field instanceof RepeaterField) {
+                    continue;
+                }
+
+                if (StorageTarget::Table === $this->registry->resolve($field->id)->storage) {
+                    ++$count;
+                }
+            }
+        }
+
+        return $count;
+    }
+
     public function value(string $fieldId, ObjectRef $object): string|int|float|bool|null
     {
         $registered = $this->registry->resolve($fieldId);
