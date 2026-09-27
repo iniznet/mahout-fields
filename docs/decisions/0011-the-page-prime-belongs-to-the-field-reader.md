@@ -51,6 +51,36 @@ merely cost a query. Repeater reads stay one statement per group per object. Tha
 a stated limit of this decision, not an oversight: the prime covers the shape whose
 maximum is declarable, and leaves the shape whose maximum is the editor's.
 
+## Amendment — the half a host can state
+
+The paragraph above holds that a repeater has no registry-derived ceiling. That was true
+of the declaration as it then stood, and false of the declaration as it became: a
+repeater may carry `expectedMaxItems`, and the writer refuses a larger group
+(`RepeaterTooLarge`), so for one of those the ceiling is not a guess at what an editor
+might store but a fact the stored data is checked against on every write.
+
+So the prime covers exactly the case the original rule asked for and none other. A
+bounded repeater is primed with a LIMIT of the page's object count times its declared
+items times its declared members — recursively, because a nested repeater's bound
+multiplies into its parent's total, and a nested repeater that declares nothing makes
+the whole group unbounded: a parent is not primed on its child's promise. An unbounded
+repeater is absent from the prime and keeps one keyed read per object, which is the
+same cost the decision above accepts.
+
+Two rules keep the bound honest rather than merely intended. The read asks for one row
+past the ceiling, because a page whose every object sits exactly at its declared maximum
+is ordinary and a prime that could not tell that page from a truncated one would decline
+to run on the case it exists for. And if a row does come back past the ceiling — a
+migration that widened a group, a write that bypassed the field layer — the prime
+declines for that group rather than filing a partial page: a lost item is a wrong
+answer, and a wrong answer is not a performance tuning.
+
+The trade a host now faces is stated by the shape rather than by prose: declare a
+ceiling, or pay per object. `FieldPrimeTest` asserts all four outcomes — bounded at one
+statement for a page of five, unbounded at five, an empty group filed as absent at none,
+and an exceeded bound declining to one read per object with the row that broke the bound
+still returned.
+
 ## Consequences
 
 Five statements in a page that used to cost fifteen; and the target stops being a

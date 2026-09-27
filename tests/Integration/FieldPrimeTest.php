@@ -12,10 +12,14 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Tests\Integration;
 
+use Iniznet\Mahout\Db\Row;
 use Iniznet\Mahout\Fields\FieldGroup;
+use Iniznet\Mahout\Fields\FieldLeavesTable;
 use Iniznet\Mahout\Fields\IntegerField;
 use Iniznet\Mahout\Fields\ObjectContext;
+use Iniznet\Mahout\Fields\ObjectKind;
 use Iniznet\Mahout\Fields\ObjectRef;
+use Iniznet\Mahout\Fields\RepeaterField;
 use Iniznet\Mahout\Fields\StorageTarget;
 use Iniznet\Mahout\Fields\Tests\TestCase;
 use Iniznet\Mahout\Fields\TextField;
@@ -136,6 +140,172 @@ final class FieldPrimeTest extends TestCase
         });
 
         self::assertSame(0, $again, 'an already-filed object is not fetched twice.');
+    }
+
+    /**
+     * A page of repeaters whose declaration bounds them: one statement brings home
+     * every leaf, and the reads that follow cost nothing. This is the half of
+     * ADR-0011 that a host can state, and it is asserted by count rather than by
+     * description because the difference between one read and five is the whole
+     * claim.
+     */
+    public function testABoundedRepeaterCostsOneStatementForTheWholePage(): void
+    {
+        $refs = $this->registerAndFillRepeater(2);
+
+        $primed = $this->statements(function () use ($refs): void {
+            $this->reader->prime($refs);
+        });
+
+        self::assertSame(1, $primed, 'one leaves statement for five objects, not five.');
+
+        $reads = $this->statements(function () use ($refs): void {
+            foreach ($refs as $index => $ref) {
+                self::assertSame(
+                    ['role '.$index.'.0', 'role '.$index.'.1'],
+                    $this->reader->items('prime_credits', $ref),
+                    (string) $ref->id,
+                );
+            }
+        });
+
+        self::assertSame(0, $reads, 'ten repeater reads after the prime cost no statement.');
+    }
+
+    /**
+     * The other half of the same rule: a repeater that declares no bound cannot be
+     * primed, because the only ceiling available would be a guess and a guess filed
+     * as a bound truncates the page it was meant to speed up.
+     */
+    public function testAnUnboundedRepeaterStillCostsOneStatementPerObject(): void
+    {
+        $refs = $this->registerAndFillRepeater(null);
+
+        $primed = $this->statements(function () use ($refs): void {
+            $this->reader->prime($refs);
+        });
+
+        self::assertSame(0, $primed, 'an unbounded repeater issues no leaves read: there is nothing to bound a LIMIT with.');
+
+        $reads = $this->statements(function () use ($refs): void {
+            foreach ($refs as $ref) {
+                self::assertCount(2, $this->reader->items('prime_credits', $ref));
+            }
+        });
+
+        self::assertSame(
+            self::ROWS,
+            $reads,
+            'the page pays one keyed read per object, which is the cost a host buys out of by declaring a bound.',
+        );
+    }
+
+    /**
+     * Absence is the normal case on a listing, and a page that rediscovered it per
+     * object would spend one statement to learn that no office has any.
+     */
+    public function testARepeaterWithNoItemsIsPrimedAsAbsent(): void
+    {
+        $this->registry->register(new FieldGroup('prime_repeater', ObjectContext::Post, [
+            new RepeaterField('prime_credits', StorageTarget::Table, new TextField('prime_role', StorageTarget::Carried), 2),
+        ]));
+
+        $ref = ObjectRef::post($this->postId());
+
+        $this->reader->prime([$ref]);
+
+        $statements = $this->statements(function () use ($ref): void {
+            self::assertSame([], $this->reader->items('prime_credits', $ref));
+        });
+
+        self::assertSame(0, $statements, 'a repeater with no items is recorded absent, not rediscovered item by item.');
+    }
+
+    /**
+     * The prime is an optimisation of a read, never a different read: the same page
+     * answers identically with the store full and with the store empty.
+     */
+    public function testThePrimedLeavesAreTheUnprimedLeaves(): void
+    {
+        $refs = $this->registerAndFillRepeater(2);
+
+        $before = [];
+
+        foreach ($refs as $ref) {
+            $before[$ref->id] = $this->reader->items('prime_credits', $ref);
+        }
+
+        $this->reader->prime($refs);
+
+        foreach ($refs as $ref) {
+            self::assertSame($before[$ref->id], $this->reader->items('prime_credits', $ref), (string) $ref->id);
+        }
+    }
+
+    /**
+     * A bound the data does not obey - a migration that widened a group, a write that
+     * bypassed the field layer - is met by declining the prime, not by filing a
+     * partial group. Nothing is silently lost, and the row that broke the bound is
+     * still read.
+     */
+    public function testAPrimeDeclinesWhenTheStoredRowsExceedItsBound(): void
+    {
+        $refs = $this->registerAndFillRepeater(1, 1);
+
+        // One leaf past a bound of one item per object, written straight through the
+        // gateway: the shape a migration that widened a group leaves behind, and the
+        // only case where the declared ceiling is not the stored one.
+        $this->gateway->insert(Row::of($this->leavesTable, [
+            FieldLeavesTable::objectKindColumn() => ObjectKind::Post->value,
+            FieldLeavesTable::objectIdColumn() => $refs[0]->id,
+            FieldLeavesTable::groupIdColumn() => 'prime_credits',
+            FieldLeavesTable::addressColumn() => '7',
+            FieldLeavesTable::memberColumn() => 'prime_role',
+            FieldLeavesTable::textColumn() => 'role 0.7',
+        ]));
+
+        $this->reader->prime($refs);
+
+        $reads = $this->statements(function () use ($refs): void {
+            foreach ($refs as $ref) {
+                $this->reader->items('prime_credits', $ref);
+            }
+        });
+
+        self::assertSame(self::ROWS, $reads, 'the prime declined, so every object kept the keyed read it has always had.');
+
+        self::assertSame(
+            ['role 0.0', 'role 0.7'],
+            $this->reader->items('prime_credits', $refs[0]),
+            'the row that broke the bound is read, not truncated away by a LIMIT that trusted the declaration.',
+        );
+    }
+
+    /**
+     * @return list<ObjectRef>
+     */
+    private function registerAndFillRepeater(?int $maxItems, int $items = 2): array
+    {
+        $this->registry->register(new FieldGroup('prime_repeater', ObjectContext::Post, [
+            new RepeaterField('prime_credits', StorageTarget::Table, new TextField('prime_role', StorageTarget::Carried), $maxItems),
+        ]));
+
+        $refs = [];
+
+        for ($row = 0; $row < self::ROWS; ++$row) {
+            $ref = ObjectRef::post($this->postId());
+            $refs[] = $ref;
+
+            $values = [];
+
+            for ($item = 0; $item < $items; ++$item) {
+                $values[] = 'role '.$row.'.'.$item;
+            }
+
+            $this->writer->setItems('prime_credits', $ref, $values);
+        }
+
+        return $refs;
     }
 
     /**

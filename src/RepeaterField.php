@@ -53,6 +53,45 @@ final readonly class RepeaterField extends Field
     }
 
     /**
+     * The greatest number of leaf rows one object can own in this group, or null
+     * when the declaration gives no bound to derive one from.
+     *
+     * This is the number the page prime needs, and it is only a bound because the
+     * write path refuses a group larger than `expectedMaxItems`: an enforced maximum
+     * is a fact about the stored data and a hoped-for one is a LIMIT that truncates.
+     * A nested repeater multiplies into its parent's total, and a nested repeater
+     * that declares nothing leaves the whole group unbounded - a parent cannot be
+     * primed on its child's promise, so it declines rather than guessing at how many
+     * blocks a section holds.
+     */
+    public function maxLeavesPerObject(): ?int
+    {
+        if (null === $this->expectedMaxItems) {
+            return null;
+        }
+
+        $perItem = 0;
+
+        foreach ($this->members() as $member) {
+            if ($member instanceof self) {
+                $nested = $member->maxLeavesPerObject();
+
+                if (null === $nested) {
+                    return null;
+                }
+
+                $perItem += $nested;
+
+                continue;
+            }
+
+            ++$perItem;
+        }
+
+        return $this->expectedMaxItems * $perItem;
+    }
+
+    /**
      * The item's fields: the one field of a scalar item, or the declared
      * list of a composite item.
      *

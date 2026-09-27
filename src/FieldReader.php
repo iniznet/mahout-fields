@@ -47,8 +47,9 @@ final readonly class FieldReader implements FieldReaderContract
     public function prime(array $objects): void
     {
         $perObject = $this->countTableScalarFields();
+        $bounds = $this->boundedLeavesPerObject();
 
-        if (0 === $perObject) {
+        if (0 === $perObject && [] === $bounds) {
             return;
         }
 
@@ -69,8 +70,57 @@ final readonly class FieldReader implements FieldReaderContract
 
         foreach ($byKind as $value => $ids) {
             $ids = \array_values(\array_unique($ids));
-            $this->table->prime(ObjectKind::from($value), $ids, \count($ids) * $perObject);
+            $kind = ObjectKind::from($value);
+
+            if (0 !== $perObject) {
+                $this->table->prime($kind, $ids, \count($ids) * $perObject);
+            }
+
+            // One statement per declared repeater group, not per object: the group is
+            // the unit the bound is provable over, and a page of five offices with one
+            // bounded group is one read rather than five.
+            foreach ($bounds as $groupId => $leaves) {
+                $this->table->primeLeaves($kind, $ids, $groupId, \count($ids) * $leaves);
+            }
         }
+    }
+
+    /**
+     * Every Table-anchored repeater whose declaration bounds its own leaf count, as
+     * group id => maximum leaves one object can own.
+     *
+     * A repeater that declares no `expectedMaxItems` is absent from this map, and that
+     * absence is the rule rather than a gap in it: its rows per object are the
+     * editor's to decide, so the only ceiling available would be a guess, and a guess
+     * filed as a bound truncates the page it means to speed up. Declaring the maximum
+     * is what buys the prime - which is the trade ADR-0011 left open, now closed for
+     * the half of it a host can state.
+     *
+     * @return array<string, int>
+     */
+    private function boundedLeavesPerObject(): array
+    {
+        $bounds = [];
+
+        foreach ($this->registry->groups() as $group) {
+            foreach ($group->fields as $field) {
+                if (!$field instanceof RepeaterField) {
+                    continue;
+                }
+
+                if (StorageTarget::Table !== $this->registry->resolve($field->id)->storage) {
+                    continue;
+                }
+
+                $bound = $field->maxLeavesPerObject();
+
+                if (null !== $bound) {
+                    $bounds[$field->id] = $bound;
+                }
+            }
+        }
+
+        return $bounds;
     }
 
     /**

@@ -40,6 +40,7 @@ final readonly class TableStorage
         private Table $values,
         private Table $leaves,
         private ValueRowStore $rows = new ValueRowStore(),
+        private LeafRowStore $leafRows = new LeafRowStore(),
     ) {
     }
 
@@ -79,6 +80,62 @@ final readonly class TableStorage
     public function primed(ObjectKind $kind, int $objectId): bool
     {
         return $this->rows->primed(ValueRowStore::key($kind, $objectId));
+    }
+
+    /**
+     * One statement for a whole page of objects, for one repeater group: every leaf
+     * row those objects own for that group, filed so the reads that follow are memory
+     * lookups.
+     *
+     * The ceiling is the caller's proven maximum leaves per object for this group - the
+     * declared item bound times the declared member count, recursively - which is why
+     * only a repeater that declares one is ever primed. A bound the write path enforces
+     * is a fact; a guess at one is a LIMIT that truncates silently, and a page that
+     * lost an item to its own prime is worse than a page that spent a statement.
+     *
+     * @param list<int> $objectIds
+     */
+    public function primeLeaves(ObjectKind $kind, array $objectIds, string $groupId, int $ceiling): void
+    {
+        $pending = \array_values(\array_filter(
+            $objectIds,
+            fn (int $id): bool => !$this->leafRows->primed(LeafRowStore::key($kind, $id, $groupId)),
+        ));
+
+        if ([] === $pending || 1 > $ceiling) {
+            return;
+        }
+
+        $objectIds = $pending;
+
+        $rows = $this->gateway->select(GatewayQuery::among(
+            Row::of($this->leaves, [
+                FieldLeavesTable::objectKindColumn() => $kind->value,
+                FieldLeavesTable::groupIdColumn() => $groupId,
+            ]),
+            $this->leaves->column(FieldLeavesTable::objectIdColumn()),
+            $objectIds,
+            $ceiling + 1,
+        ));
+
+        // One row past the bound came back, so the bound the declaration states is not
+        // the bound the data obeys - a migration that widened a group, a write that
+        // bypassed the field layer. The prime declines, every object keeps the single
+        // keyed read it has always had, and filing a partial group is the one outcome
+        // this never produces.
+        if (\count($rows) > $ceiling) {
+            return;
+        }
+
+        $byObject = [];
+
+        foreach ($rows as $row) {
+            $byObject[(int) $row->value(FieldLeavesTable::objectIdColumn())][] = $row;
+        }
+
+        foreach ($objectIds as $id) {
+            $this->leafRows->file(LeafRowStore::key($kind, $id, $groupId), $byObject[$id] ?? []);
+        }
     }
 
     /**
@@ -202,11 +259,17 @@ final readonly class TableStorage
     public function readLeaves(RepeaterField $field, ObjectRef $object): array
     {
         $kind = $this->kind($object, $field);
-        $rows = $this->gateway->select(GatewayQuery::keyed(Row::of($this->leaves, [
-            FieldLeavesTable::objectKindColumn() => $kind->value,
-            FieldLeavesTable::objectIdColumn() => $object->id,
-            FieldLeavesTable::groupIdColumn() => $field->id,
-        ])));
+
+        // A primed group answers from the page read; an unprimed one - a repeater with
+        // no declared bound, or an object this page never primed - still costs the
+        // single primary-key equality it has always cost. One lookup carries both
+        // facts: a filed group is a list, possibly empty, and an unfiled one is null.
+        $rows = $this->leafRows->rows(LeafRowStore::key($kind, $object->id, $field->id))
+            ?? $this->gateway->select(GatewayQuery::keyed(Row::of($this->leaves, [
+                FieldLeavesTable::objectKindColumn() => $kind->value,
+                FieldLeavesTable::objectIdColumn() => $object->id,
+                FieldLeavesTable::groupIdColumn() => $field->id,
+            ])));
 
         $leaves = [];
 
