@@ -8,6 +8,7 @@ use Iniznet\Mahout\Db\Contracts\TableGateway;
 use Iniznet\Mahout\Db\DdlEmitter;
 use Iniznet\Mahout\Db\Internal\WpdbConnection;
 use Iniznet\Mahout\Db\Internal\WpdbTableGateway;
+use Iniznet\Mahout\Db\MigrationLedgerSchema;
 use Iniznet\Mahout\Db\Table;
 use Iniznet\Mahout\Fields\Contracts\FieldReader;
 use Iniznet\Mahout\Fields\Contracts\FieldRegistry;
@@ -44,6 +45,9 @@ abstract class TestCase extends \WP_UnitTestCase
 
     protected Table $leavesTable;
 
+    /** The migrations ledger: a claim about artefacts this suite drops, so it is dropped with them. */
+    protected Table $ledgerTable;
+
     private WpdbConnection $connection;
 
     protected RevisionMirror $mirror;
@@ -58,6 +62,7 @@ abstract class TestCase extends \WP_UnitTestCase
         $this->gateway = new WpdbTableGateway($this->connection);
         $this->valuesTable = FieldValuesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
         $this->leavesTable = FieldLeavesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
+        $this->ledgerTable = MigrationLedgerSchema::table($this->connection->prefix(), $this->connection->charsetCollate());
 
         $this->dropTables();
         $this->createTables();
@@ -212,6 +217,14 @@ abstract class TestCase extends \WP_UnitTestCase
 
         $wpdb->query('DROP TABLE IF EXISTS '.$this->valuesTable->name->quoted());
         $wpdb->query('DROP TABLE IF EXISTS '.$this->leavesTable->name->quoted());
+
+        // A ledger row is a promise that a schema artefact exists. Dropping the tables
+        // and keeping the promise leaves the next suite in the worst state a migration
+        // runner can be in: it reads the ledger, believes it, and creates nothing - then
+        // fails far away with "table doesn't exist" and no line saying which fact broke.
+        // This suite creates those tables and drops them, so this suite owns the ledger
+        // that describes them.
+        $wpdb->query('DROP TABLE IF EXISTS '.$this->ledgerTable->name->quoted());
     }
 
     protected function createTables(): void
