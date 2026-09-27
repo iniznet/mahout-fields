@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Tests;
 
+use Iniznet\Mahout\Kernel\RuntimeIdentity;
+
 use Iniznet\Mahout\Db\Contracts\TableGateway;
 use Iniznet\Mahout\Db\DdlEmitter;
 use Iniznet\Mahout\Db\Internal\WpdbConnection;
@@ -31,8 +33,16 @@ use Iniznet\Mahout\Fields\Internal\TableStorage;
  *
  * @internal
  */
+
 abstract class TestCase extends \WP_UnitTestCase
 {
+
+    /** The identity the suite declares, standing in for a host's own. */
+    protected static function identity(): RuntimeIdentity
+    {
+        return RuntimeIdentity::fromSlug('suite');
+    }
+
     protected FieldRegistry $registry;
 
     protected FieldReader $reader;
@@ -62,7 +72,7 @@ abstract class TestCase extends \WP_UnitTestCase
         $this->gateway = new WpdbTableGateway($this->connection);
         $this->valuesTable = FieldValuesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
         $this->leavesTable = FieldLeavesTable::table($this->connection->prefix(), $this->connection->charsetCollate());
-        $this->ledgerTable = MigrationLedgerSchema::table($this->connection->prefix(), $this->connection->charsetCollate());
+        $this->ledgerTable = MigrationLedgerSchema::table($this->connection->prefix(), self::identity(), $this->connection->charsetCollate());
 
         $this->dropTables();
         $this->createTables();
