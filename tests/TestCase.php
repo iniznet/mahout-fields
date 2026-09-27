@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Iniznet\Mahout\Fields\Tests;
 
-use Iniznet\Mahout\Kernel\RuntimeIdentity;
-
 use Iniznet\Mahout\Db\Contracts\TableGateway;
 use Iniznet\Mahout\Db\DdlEmitter;
 use Iniznet\Mahout\Db\Internal\WpdbConnection;
@@ -22,6 +20,7 @@ use Iniznet\Mahout\Fields\Internal\MetaStorage;
 use Iniznet\Mahout\Fields\Internal\RevisionMirror;
 use Iniznet\Mahout\Fields\Internal\RevisionRestorer;
 use Iniznet\Mahout\Fields\Internal\TableStorage;
+use Iniznet\Mahout\Kernel\RuntimeIdentity;
 
 /**
  * The base test case for this package.
@@ -33,10 +32,8 @@ use Iniznet\Mahout\Fields\Internal\TableStorage;
  *
  * @internal
  */
-
 abstract class TestCase extends \WP_UnitTestCase
 {
-
     /** The identity the suite declares, standing in for a host's own. */
     protected static function identity(): RuntimeIdentity
     {
@@ -221,10 +218,20 @@ abstract class TestCase extends \WP_UnitTestCase
         return $found === $table->name->value;
     }
 
+    /** A table this suite shares with mahout-db under a name that is not identity-scoped yet. */
+    protected function ledgerName(string $suffix): string
+    {
+        return $this->connection->prefix().$suffix;
+    }
+
     protected function dropTables(): void
     {
         global $wpdb;
 
+        // The unsuffixed ledger: LegacyNameAdoption would otherwise move mahout-db's
+        // history onto this suite's identity and answer "already applied" for tables
+        // this suite still has to create.
+        $wpdb->query('DROP TABLE IF EXISTS '.$this->ledgerName('mahout_migrations'));
         $wpdb->query('DROP TABLE IF EXISTS '.$this->valuesTable->name->quoted());
         $wpdb->query('DROP TABLE IF EXISTS '.$this->leavesTable->name->quoted());
 
