@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "iniznet/mahout-content",
-            "version": "1.0.2",
+            "version": "1.0.3",
             "source": {
                 "type": "git",
                 "url": "git@github.com:iniznet/mahout-content.git",
-                "reference": "260d79146e8718d46fa02a6118a481f4dd5ba121"
+                "reference": "92ac07de9661592f9e1e07865f3cbf21df4def96"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/iniznet/mahout-content/zipball/260d79146e8718d46fa02a6118a481f4dd5ba121",
-                "reference": "260d79146e8718d46fa02a6118a481f4dd5ba121",
+                "url": "https://api.github.com/repos/iniznet/mahout-content/zipball/92ac07de9661592f9e1e07865f3cbf21df4def96",
+                "reference": "92ac07de9661592f9e1e07865f3cbf21df4def96",
                 "shasum": ""
             },
             "require": {
@@ -25,14 +25,9 @@
                 "php": ">=8.4"
             },
             "require-dev": {
-                "iniznet/mahout-devtools": "^1.0"
+                "iniznet/mahout-devtools": "^2.0"
             },
             "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "1.0.x-dev"
-                }
-            },
             "autoload": {
                 "psr-4": {
                     "Iniznet\\Mahout\\Content\\": "src/"
@@ -66,10 +61,10 @@
                     "php vendor/bin/phpunit -c phpunit.xml.dist"
                 ],
                 "hooks:check": [
-                    "php vendor/bin/mahout-devtools hooks:check --source=src --output=docs/reference/hooks.md"
+                    "php vendor/bin/mahout-devtools hooks:check --source=src --outdir=docs/reference"
                 ],
                 "hooks:generate": [
-                    "php vendor/bin/mahout-devtools hooks:generate --source=src --output=docs/reference/hooks.md"
+                    "php vendor/bin/mahout-devtools hooks:generate --source=src --outdir=docs/reference"
                 ],
                 "i18n:check": [
                     "php vendor/bin/mahout-devtools i18n:check --domain=mahout-content --source=src --output=languages/mahout-content.pot"
@@ -107,20 +102,20 @@
                 "taxonomy",
                 "wordpress"
             ],
-            "time": "2026-09-28T08:10:30+00:00"
+            "time": "2026-09-28T18:12:44+00:00"
         },
         {
             "name": "iniznet/mahout-db",
-            "version": "1.0.1",
+            "version": "1.0.2",
             "source": {
                 "type": "git",
                 "url": "git@github.com:iniznet/mahout-db.git",
-                "reference": "aa2aa3de3626b272b69ee7431c8ffcd2f4fdb6fc"
+                "reference": "145c66cb581a267cb92932a73ca398704e5afddf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/iniznet/mahout-db/zipball/aa2aa3de3626b272b69ee7431c8ffcd2f4fdb6fc",
-                "reference": "aa2aa3de3626b272b69ee7431c8ffcd2f4fdb6fc",
+                "url": "https://api.github.com/repos/iniznet/mahout-db/zipball/145c66cb581a267cb92932a73ca398704e5afddf",
+                "reference": "145c66cb581a267cb92932a73ca398704e5afddf",
                 "shasum": ""
             },
             "require": {
@@ -128,14 +123,9 @@
                 "php": ">=8.4"
             },
             "require-dev": {
-                "iniznet/mahout-devtools": "^1.0"
+                "iniznet/mahout-devtools": "^2.0"
             },
             "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "1.0.x-dev"
-                }
-            },
             "autoload": {
                 "psr-4": {
                     "Iniznet\\Mahout\\Db\\": "src/"
@@ -169,10 +159,10 @@
                     "php vendor/bin/phpunit -c phpunit.xml.dist"
                 ],
                 "hooks:check": [
-                    "php vendor/bin/mahout-devtools hooks:check --source=src --output=docs/reference/hooks.md"
+                    "php vendor/bin/mahout-devtools hooks:check --source=src --outdir=docs/reference"
                 ],
                 "hooks:generate": [
-                    "php vendor/bin/mahout-devtools hooks:generate --source=src --output=docs/reference/hooks.md"
+                    "php vendor/bin/mahout-devtools hooks:generate --source=src --outdir=docs/reference"
                 ],
                 "i18n:check": [
                     "php vendor/bin/mahout-devtools i18n:check --domain=mahout-db --source=src --output=languages/mahout-db.pot"
@@ -209,34 +199,29 @@
                 "schema",
                 "wordpress"
             ],
-            "time": "2026-09-28T07:51:26+00:00"
+            "time": "2026-09-28T18:12:45+00:00"
         },
         {
             "name": "iniznet/mahout-kernel",
-            "version": "1.0.1",
+            "version": "1.0.2",
             "source": {
                 "type": "git",
                 "url": "git@github.com:iniznet/mahout-kernel.git",
-                "reference": "1f45b7ff7cd8a2458e3370ac28bfdd833d2e77e8"
+                "reference": "cac60c5e6ed49ef46a0d2f85d69ea9831675a1ec"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/iniznet/mahout-kernel/zipball/1f45b7ff7cd8a2458e3370ac28bfdd833d2e77e8",
-                "reference": "1f45b7ff7cd8a2458e3370ac28bfdd833d2e77e8",
+                "url": "https://api.github.com/repos/iniznet/mahout-kernel/zipball/cac60c5e6ed49ef46a0d2f85d69ea9831675a1ec",
+                "reference": "cac60c5e6ed49ef46a0d2f85d69ea9831675a1ec",
                 "shasum": ""
             },
             "require": {
                 "php": ">=8.4"
             },
             "require-dev": {
-                "iniznet/mahout-devtools": "^1.0"
+                "iniznet/mahout-devtools": "^2.0"
             },
             "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-main": "1.0.x-dev"
-                }
-            },
             "autoload": {
                 "psr-4": {
                     "Iniznet\\Mahout\\Kernel\\": "src/"
@@ -270,10 +255,10 @@
                     "php vendor/bin/phpunit -c phpunit.xml.dist"
                 ],
                 "hooks:check": [
-                    "php vendor/bin/mahout-devtools hooks:check --source=src --output=docs/reference/hooks.md"
+                    "php vendor/bin/mahout-devtools hooks:check --source=src --outdir=docs/reference"
                 ],
                 "hooks:generate": [
-                    "php vendor/bin/mahout-devtools hooks:generate --source=src --output=docs/reference/hooks.md"
+                    "php vendor/bin/mahout-devtools hooks:generate --source=src --outdir=docs/reference"
                 ],
                 "i18n:check": [
                     "php vendor/bin/mahout-devtools i18n:check --domain=mahout-kernel --source=src --output=languages/mahout-kernel.pot"
@@ -310,7 +295,7 @@
                 "mahout",
                 "wordpress"
             ],
-            "time": "2026-09-28T07:51:08+00:00"
+            "time": "2026-09-28T18:12:44+00:00"
         }
     ],
     "packages-dev": [
