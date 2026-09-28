@@ -2,7 +2,8 @@
 
 ## Hooks
 
-The generated hook reference, `docs/reference/hooks.md`, is the inventory. The
+The generated hook references, `docs/reference/actions.md` and
+`docs/reference/filters.md`, are the inventory. The
 names are `public const` on `Hooks`; a raw hook-name string is banned and the
 architecture rules fire on one in a fixture.
 
